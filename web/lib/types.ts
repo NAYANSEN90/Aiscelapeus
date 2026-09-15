@@ -1,0 +1,87 @@
+/**
+ * Shapes of the events the agent publishes over the LiveKit data channel.
+ * Both the responder view and the doctor dashboard render from this one stream,
+ * so triage state never diverges between them.
+ */
+
+export type TriageTopic =
+  | "triage.state"
+  | "triage.finding"
+  | "triage.retrieval"
+  | "triage.escalation"
+  | "triage.transcript"
+  | "triage.soap";
+
+export interface TriageState {
+  session_id: string;
+  level: 1 | 2 | 3 | 4 | 5;
+  label: string;
+  rationale: string;
+  definition: string;
+  escalated: boolean;
+  escalation_reason: string | null;
+  clinician_requested_at: string | null;
+  distress_score: number;
+  updated_at: string;
+  history: Array<{
+    level: number;
+    label: string;
+    rationale: string;
+    source: string;
+    at: string;
+  }>;
+}
+
+export interface Finding {
+  id: string;
+  text: string;
+  kind: string;
+  seq: string;
+  elapsed_s: string;
+  recorded_at: string;
+}
+
+export interface RetrievalEvent {
+  kind: "protocol" | "state";
+  query: string;
+  category?: string | null;
+  hits: Array<{ id: string; title?: string; text?: string; score?: number }>;
+  wall_ms: number | null;
+  moss_ms: number | null;
+  within_budget: boolean | null;
+}
+
+export interface EscalationEvent {
+  session_id: string;
+  level: number;
+  label: string;
+  reason: string;
+  requested_at: string | null;
+}
+
+export interface TranscriptEvent {
+  speaker: string;
+  text: string;
+  final: boolean;
+}
+
+export interface SoapEvent {
+  session_id: string;
+  note: string;
+}
+
+export type TriageEnvelope =
+  | { topic: "triage.state"; data: TriageState }
+  | { topic: "triage.finding"; data: Finding }
+  | { topic: "triage.retrieval"; data: RetrievalEvent }
+  | { topic: "triage.escalation"; data: EscalationEvent }
+  | { topic: "triage.transcript"; data: TranscriptEvent }
+  | { topic: "triage.soap"; data: SoapEvent };
+
+export const LEVEL_STYLES: Record<number, { bg: string; ring: string; text: string }> = {
+  1: { bg: "bg-emerald-500/10", ring: "ring-emerald-500/40", text: "text-emerald-300" },
+  2: { bg: "bg-sky-500/10", ring: "ring-sky-500/40", text: "text-sky-300" },
+  3: { bg: "bg-amber-500/10", ring: "ring-amber-500/40", text: "text-amber-300" },
+  4: { bg: "bg-orange-500/10", ring: "ring-orange-500/40", text: "text-orange-300" },
+  5: { bg: "bg-red-500/10", ring: "ring-red-500/50", text: "text-red-300" },
+};

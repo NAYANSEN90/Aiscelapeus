@@ -1,0 +1,304 @@
+"""Seed corpus of field first-aid protocols indexed into Moss.
+
+Every entry is a single retrievable instruction block, written the way a
+responder needs to hear it: short, imperative, one action per line. Text is
+paraphrased from public first-aid guidance (AHA BLS, ERC, Stop the Bleed,
+Red Cross field guides) and is NOT a substitute for clinical training.
+
+`severity` is the criticality level (1-5, PRD 5.3) at which this protocol
+becomes relevant, and is used for metadata filtering so a Level 2 laceration
+never retrieves cardiac-arrest instructions.
+"""
+
+from __future__ import annotations
+
+from typing import Any
+
+PROTOCOLS: list[dict[str, Any]] = [
+    {
+        "id": "bls-adult-cpr",
+        "category": "cardiac",
+        "severity": 5,
+        "title": "Adult CPR - unresponsive, not breathing normally",
+        "text": (
+            "Adult CPR. Confirm unresponsive and not breathing normally. Call for help and "
+            "start compressions now. Heel of one hand on the centre of the chest, other hand "
+            "on top, arms straight. Push hard, at least 5 centimetres deep. Push fast, 100 to "
+            "120 compressions per minute. Let the chest come all the way back up between "
+            "compressions. Thirty compressions, then two rescue breaths if trained. Do not "
+            "stop for more than 10 seconds. Swap rescuers every 2 minutes to stay effective."
+        ),
+    },
+    {
+        "id": "bls-aed",
+        "category": "cardiac",
+        "severity": 5,
+        "title": "AED use during cardiac arrest",
+        "text": (
+            "AED. As soon as the defibrillator arrives, switch it on and follow the voice "
+            "prompts. Bare the chest and dry it. One pad below the right collarbone, one pad "
+            "on the left side below the armpit. Stop compressions only while it analyses. "
+            "Make sure nobody is touching the patient before the shock. Resume compressions "
+            "immediately after the shock without waiting to check a pulse."
+        ),
+    },
+    {
+        "id": "bleed-tourniquet",
+        "category": "haemorrhage",
+        "severity": 4,
+        "title": "Life-threatening limb bleeding - tourniquet",
+        "text": (
+            "Severe limb bleeding. If blood is spurting, pooling, or soaking through, apply a "
+            "tourniquet. Place it 5 to 8 centimetres above the wound, never over a joint. "
+            "Tighten until the bleeding stops, then secure the windlass. Write the time it "
+            "was applied. It will hurt; that is expected. Do not loosen or remove it. If "
+            "bleeding continues, apply a second tourniquet just above the first."
+        ),
+    },
+    {
+        "id": "bleed-pressure-packing",
+        "category": "haemorrhage",
+        "severity": 3,
+        "title": "Wound packing and direct pressure",
+        "text": (
+            "Direct pressure and packing. For bleeding on the neck, armpit, or groin where a "
+            "tourniquet cannot go, pack the wound. Push gauze or clean cloth deep into the "
+            "wound, right down onto the bleeding vessel, then hold firm pressure with both "
+            "hands for at least 3 minutes without lifting to check. Once bleeding slows, "
+            "bandage tightly over the packing and keep pressure on."
+        ),
+    },
+    {
+        "id": "airway-choking-adult",
+        "category": "airway",
+        "severity": 4,
+        "title": "Choking - conscious adult",
+        "text": (
+            "Choking adult, still conscious. If they can cough, encourage coughing. If the "
+            "cough is silent or they cannot breathe, give 5 sharp back blows between the "
+            "shoulder blades with the heel of your hand, leaning them forward. If that fails, "
+            "give 5 abdominal thrusts: fist above the navel, other hand over it, pull sharply "
+            "inward and upward. Alternate 5 and 5. If they go unconscious, lower them down "
+            "and start CPR."
+        ),
+    },
+    {
+        "id": "airway-recovery-position",
+        "category": "airway",
+        "severity": 3,
+        "title": "Unconscious but breathing - recovery position",
+        "text": (
+            "Unconscious but breathing normally. Put them in the recovery position. Kneel "
+            "beside them, place the near arm out at a right angle, bring the far hand against "
+            "their cheek, pull the far knee up and roll them toward you onto their side. Tilt "
+            "the head back to keep the airway open. Recheck breathing every minute. Do not "
+            "roll them if you suspect a spinal injury unless the airway is threatened."
+        ),
+    },
+    {
+        "id": "drowning-rescue",
+        "category": "drowning",
+        "severity": 5,
+        "title": "Drowning - out of water, unresponsive",
+        "text": (
+            "Drowning. Once out of the water, check breathing. Drowning is a hypoxic arrest, "
+            "so start with 5 rescue breaths before compressions, then 30 compressions to 2 "
+            "breaths. Expect vomiting; turn the head to the side and clear the mouth, then "
+            "continue. Do not waste time trying to drain water from the lungs. Get them warm "
+            "and dry once breathing returns."
+        ),
+    },
+    {
+        "id": "shock-management",
+        "category": "circulation",
+        "severity": 4,
+        "title": "Hypovolaemic shock",
+        "text": (
+            "Shock. Pale, cold, clammy skin, fast weak pulse, confusion or drowsiness. Lay "
+            "them flat and raise the legs about 30 centimetres unless a leg or spine is "
+            "injured. Stop any ongoing bleeding first. Keep them warm with a blanket or coat, "
+            "including underneath them. Give nothing to eat or drink. Recheck breathing and "
+            "responsiveness every minute."
+        ),
+    },
+    {
+        "id": "burns-thermal",
+        "category": "burns",
+        "severity": 3,
+        "title": "Thermal burn",
+        "text": (
+            "Burns. Cool the burn under cool running water for 20 minutes. Do not use ice, "
+            "butter, or ointment. Remove rings, watches, and tight clothing near the burn "
+            "before swelling starts, but leave anything stuck to the skin. Cover loosely with "
+            "cling film or a clean non-fluffy dressing. Keep the rest of the body warm. Any "
+            "burn to the face, hands, feet, genitals, or any burn larger than the patient's "
+            "palm needs a hospital."
+        ),
+    },
+    {
+        "id": "fracture-immobilise",
+        "category": "trauma",
+        "severity": 2,
+        "title": "Suspected fracture",
+        "text": (
+            "Suspected fracture. Do not try to straighten the limb. Support it in the "
+            "position found, using padding and a splint that spans the joints above and "
+            "below. Check fingers or toes beyond the injury for warmth, colour, and "
+            "sensation before and after splinting. Apply a cold pack over cloth for 20 "
+            "minutes. If bone is through the skin, cover with a sterile dressing and do not "
+            "push it back."
+        ),
+    },
+    {
+        "id": "spinal-precaution",
+        "category": "trauma",
+        "severity": 4,
+        "title": "Suspected spinal injury",
+        "text": (
+            "Suspected spinal injury after a fall, dive, or high-speed impact. Tell them not "
+            "to move. Kneel behind the head and hold it steady in line with the body with "
+            "both hands. Do not move them unless they are in immediate danger or you need "
+            "the airway. If you must move them, keep the head, neck, and spine in one line "
+            "and use several rescuers to log-roll together."
+        ),
+    },
+    {
+        "id": "anaphylaxis",
+        "category": "allergy",
+        "severity": 5,
+        "title": "Anaphylaxis",
+        "text": (
+            "Anaphylaxis. Swelling of the lips or tongue, hoarse voice, wheeze, widespread "
+            "rash, or sudden collapse after an exposure. Use their adrenaline auto-injector "
+            "immediately: firmly into the outer thigh, hold for the time printed on the "
+            "device, and note the time. Lay them flat with legs raised; sit them up only if "
+            "breathing is hard. If there is no improvement in 5 minutes, give a second dose "
+            "in the other thigh. This always needs emergency transport, even if they recover."
+        ),
+    },
+    {
+        "id": "seizure",
+        "category": "neuro",
+        "severity": 3,
+        "title": "Active seizure",
+        "text": (
+            "Seizure. Do not restrain them and do not put anything in their mouth. Clear hard "
+            "objects away and cushion the head. Note the start time. Once the jerking stops, "
+            "roll them into the recovery position and check breathing. Call for emergency "
+            "help if the seizure lasts more than 5 minutes, repeats without recovery, or if "
+            "this is their first seizure."
+        ),
+    },
+    {
+        "id": "stroke-fast",
+        "category": "neuro",
+        "severity": 4,
+        "title": "Suspected stroke - FAST",
+        "text": (
+            "Suspected stroke. Check FAST. Face: ask them to smile, look for one side "
+            "drooping. Arms: ask them to raise both arms, look for one drifting down. Speech: "
+            "ask them to repeat a sentence, listen for slurring. Time: note when they were "
+            "last seen well, because treatment depends on it. Keep them still and "
+            "comfortable, nothing to eat or drink, and get emergency transport now."
+        ),
+    },
+    {
+        "id": "hypoglycaemia",
+        "category": "metabolic",
+        "severity": 3,
+        "title": "Low blood sugar",
+        "text": (
+            "Low blood sugar. Shaky, sweating, confused, aggressive, or drowsy in someone "
+            "known to have diabetes. If they are awake and can swallow, give 15 to 20 grams "
+            "of fast sugar: glucose tablets, juice, or sugary drink, not diet. Recheck after "
+            "10 minutes and repeat once if still unwell, then give a longer-acting snack. If "
+            "they are unconscious or cannot swallow, give nothing by mouth, place them in the "
+            "recovery position, and get emergency help."
+        ),
+    },
+    {
+        "id": "minor-wound",
+        "category": "wounds",
+        "severity": 1,
+        "title": "Minor cut or graze",
+        "text": (
+            "Minor cut or graze. Wash your hands, then rinse the wound under clean running "
+            "water to flush out dirt. Pat dry around it and cover with a sterile adhesive "
+            "dressing. Apply gentle pressure for a few minutes if it is still oozing. Check "
+            "tetanus cover if the wound is dirty or from a puncture. Seek care if the edges "
+            "gape, it will not stop bleeding, or it later becomes red, hot, or swollen."
+        ),
+    },
+    {
+        "id": "heat-stroke",
+        "category": "environmental",
+        "severity": 4,
+        "title": "Heat stroke",
+        "text": (
+            "Heat stroke. Hot skin, confusion or collapse after heat or exertion. This is an "
+            "emergency. Move them into shade, strip outer clothing, and cool aggressively: "
+            "cold water immersion if possible, otherwise soak them and fan hard, with cold "
+            "packs to the neck, armpits, and groin. Keep cooling until they are alert or help "
+            "arrives. Do not give fever medication."
+        ),
+    },
+    {
+        "id": "hypothermia",
+        "category": "environmental",
+        "severity": 4,
+        "title": "Hypothermia",
+        "text": (
+            "Hypothermia. Shivering, slurred speech, clumsiness, drowsiness after cold "
+            "exposure. Move them out of the cold and remove wet clothing by cutting it off "
+            "rather than making them move. Wrap in dry layers including the head, and "
+            "insulate them from the ground. Handle them gently; rough movement can trigger a "
+            "dangerous heart rhythm. Warm sweet drinks only if fully alert. No alcohol, no "
+            "rubbing the limbs."
+        ),
+    },
+    {
+        "id": "chest-pain-cardiac",
+        "category": "cardiac",
+        "severity": 4,
+        "title": "Chest pain, suspected heart attack",
+        "text": (
+            "Suspected heart attack. Crushing central chest pain, possibly spreading to the "
+            "arm, jaw, or back, with sweating, nausea, or breathlessness. Sit them down, "
+            "leaning back with knees bent, and keep them calm and still. Call emergency "
+            "services now. If they are not allergic and have no bleeding disorder, a 300 "
+            "milligram aspirin chewed slowly can help. Be ready to start CPR if they collapse."
+        ),
+    },
+    {
+        "id": "scene-safety",
+        "category": "general",
+        "severity": 1,
+        "title": "Scene safety and primary survey",
+        "text": (
+            "Before you touch anyone, check the scene is safe for you: traffic, fire, "
+            "electricity, gas, water, unstable structures, aggression. You cannot help if you "
+            "become the second casualty. Then run the primary survey in order: Danger, "
+            "Response, Airway, Breathing, Circulation. Fix each problem as you find it before "
+            "moving to the next."
+        ),
+    },
+]
+
+
+def as_documents() -> list[dict[str, Any]]:
+    """Shape the corpus into Moss documents with filterable metadata."""
+    docs: list[dict[str, Any]] = []
+    for entry in PROTOCOLS:
+        docs.append(
+            {
+                "id": entry["id"],
+                "text": f"{entry['title']}. {entry['text']}",
+                "metadata": {
+                    "category": entry["category"],
+                    "severity": entry["severity"],
+                    "title": entry["title"],
+                    "source": "field-first-aid-corpus",
+                },
+            }
+        )
+    return docs
