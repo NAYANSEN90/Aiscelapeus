@@ -83,9 +83,9 @@ class AiscelapeusAgent(Agent):
                 metabolic, wounds, environmental, general.
         """
         categories = [category] if category in PROTOCOL_CATEGORIES else None
-        hits = await self.context.lookup_protocol(query, categories=categories)
+        result = await self.context.lookup_protocol(query, categories=categories)
+        hits, trace = result.hits, result.trace
 
-        trace = self.context.last_trace
         await self.publish(
             "triage.retrieval",
             {
@@ -95,9 +95,9 @@ class AiscelapeusAgent(Agent):
                 "hits": [
                     {"id": h.id, "title": h.title, "score": round(h.score, 3)} for h in hits
                 ],
-                "wall_ms": trace.wall_ms if trace else None,
-                "moss_ms": trace.moss_ms if trace else None,
-                "within_budget": trace.within_budget if trace else None,
+                "wall_ms": trace.wall_ms,
+                "moss_ms": trace.moss_ms,
+                "within_budget": trace.within_budget,
             },
         )
 
@@ -112,7 +112,7 @@ class AiscelapeusAgent(Agent):
 
         return {
             "found": True,
-            "retrieval_ms": trace.wall_ms if trace else None,
+            "retrieval_ms": trace.wall_ms,
             "protocols": [
                 {"title": h.title, "category": h.metadata.get("category"), "text": h.text}
                 for h in hits
@@ -170,8 +170,8 @@ class AiscelapeusAgent(Agent):
             query: What you need to recall. For example "when was the tourniquet
                 applied" or "has adrenaline been given".
         """
-        hits = await self.context.recall(query)
-        trace = self.context.last_trace
+        result = await self.context.recall(query)
+        hits, trace = result.hits, result.trace
 
         await self.publish(
             "triage.retrieval",
@@ -179,15 +179,15 @@ class AiscelapeusAgent(Agent):
                 "kind": "state",
                 "query": query,
                 "hits": [{"id": h.id, "text": h.text} for h in hits],
-                "wall_ms": trace.wall_ms if trace else None,
-                "moss_ms": trace.moss_ms if trace else None,
-                "within_budget": trace.within_budget if trace else None,
+                "wall_ms": trace.wall_ms,
+                "moss_ms": trace.moss_ms,
+                "within_budget": trace.within_budget,
             },
         )
 
         return {
             "elapsed_s": round(self.context.elapsed_seconds, 1),
-            "retrieval_ms": trace.wall_ms if trace else None,
+            "retrieval_ms": trace.wall_ms,
             "facts": [h.text for h in hits] or ["Nothing recorded yet for that."],
         }
 

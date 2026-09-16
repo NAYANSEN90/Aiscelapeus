@@ -62,7 +62,7 @@ class Retrieved:
         return self.metadata.get("title", self.id)
 
 
-@dataclass
+@dataclass(frozen=True)
 class RetrievalTrace:
     """What a retrieval cost. Surfaced to the UI so latency is visible live."""
 
@@ -72,6 +72,32 @@ class RetrievalTrace:
     moss_ms: int | None
     hits: int
     within_budget: bool
+
+
+@dataclass(frozen=True)
+class RetrievalResult:
+    """Hits plus the measurement of the call that produced them.
+
+    The trace used to be stashed on the context as a single shared slot and
+    read back by the caller after an await. LiveKit runs one task per tool
+    call, so when the model asked for a protocol lookup and a state recall in
+    the same turn, one task could publish the other's latency under its own
+    query string - self-consistent, plausible, and wrong. Returning the
+    measurement with its own result makes that misattribution unrepresentable.
+    """
+
+    hits: list[Retrieved]
+    trace: RetrievalTrace
+
+    def __iter__(self):
+        """Kept iterable so existing `for hit in result` call sites still read naturally."""
+        return iter(self.hits)
+
+    def __len__(self) -> int:
+        return len(self.hits)
+
+    def __bool__(self) -> bool:
+        return bool(self.hits)
 
 
 def _hits(result: SearchResult) -> list[Retrieved]:
@@ -104,7 +130,6 @@ class EmergencyContext:
     _session: SessionIndex | None = field(default=None, init=False, repr=False)
     _seq: int = field(default=0, init=False)
     _lock: asyncio.Lock = field(default_factory=asyncio.Lock, init=False, repr=False)
-    last_trace: RetrievalTrace | None = field(default=None, init=False)
 
     # ---------------------------------------------------------------- lifecycle
 
@@ -156,7 +181,7 @@ class EmergencyContext:
         *,
         categories: Iterable[str] | None = None,
         top_k: int | None = None,
-    ) -> list[Retrieved]:
+    ) -> RetrievalResult:
         """Semantic + keyword search over the verified protocol corpus."""
         if self._client is None:
             raise RuntimeError("EmergencyContext.connect() was never awaited")
@@ -187,11 +212,13 @@ class EmergencyContext:
             result = await self._client.query(self.config.protocols_index, query, options)
             wall_ms = (time.perf_counter() - started) * 1000
             hits = _hits(result)
-            self._annotate(current, self.config.protocols_index, query, wall_ms, result, hits)
+            trace = self._annotate(
+                current, self.config.protocols_index, query, wall_ms, result, hits
+            )
 
-        return hits
+        return RetrievalResult(hits=hits, trace=trace)
 
-    async def recall(self, query: str, *, top_k: int | None = None) -> list[Retrieved]:
+    async def recall(self, query: str, *, top_k: int | None = None) -> RetrievalResult:
         """Semantic recall over what has already happened in this emergency."""
         session = self._require_session()
 
@@ -209,9 +236,11 @@ class EmergencyContext:
             result = await session.query(query, options)
             wall_ms = (time.perf_counter() - started) * 1000
             hits = _hits(result)
-            self._annotate(current, self.session_index_name, query, wall_ms, result, hits)
+            trace = self._annotate(
+                current, self.session_index_name, query, wall_ms, result, hits
+            )
 
-        return hits
+        return RetrievalResult(hits=hits, trace=trace)
 
     def _annotate(
         self,
@@ -221,7 +250,7 @@ class EmergencyContext:
         wall_ms: float,
         result: SearchResult,
         hits: list[Retrieved],
-    ) -> None:
+    ) -> RetrievalTrace:
         moss_ms = result.time_taken_ms
         within = wall_ms <= self.config.latency_budget_ms
         current.set_attribute("moss.wall_ms", round(wall_ms, 3))
@@ -240,7 +269,7 @@ class EmergencyContext:
                 wall_ms,
                 self.config.latency_budget_ms,
             )
-        self.last_trace = RetrievalTrace(
+        return RetrievalTrace(
             index=index,
             query=query,
             wall_ms=round(wall_ms, 3),
