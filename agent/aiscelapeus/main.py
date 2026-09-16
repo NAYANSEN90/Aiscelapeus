@@ -49,9 +49,10 @@ async def entrypoint(ctx: JobContext) -> None:
             "aiscelapeus.prompt_version": PROMPT_VERSION,
             "aiscelapeus.room": ctx.room.name,
         },
-        # Transcripts are patient data. Keep them out of spans unless the
-        # operator explicitly opts in for debugging.
-        allow_pii=settings.telemetry.environment == "development",
+        # Transcripts are patient data. The policy lives in TelemetryConfig,
+        # where it is one named field a test can reach - not an expression
+        # re-derived at each call site.
+        allow_pii=settings.telemetry.allow_pii,
     )
 
     session_id = ctx.room.name

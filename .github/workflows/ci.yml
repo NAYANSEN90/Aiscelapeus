@@ -1,0 +1,122 @@
+name: CI
+
+# The register marked requirements BUILT with "CI-asserted" evidence while no
+# CI existed. Everything asserted here is asserted by something that runs.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  agent:
+    name: agent (python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12"]
+    defaults:
+      run:
+        working-directory: agent
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+      - name: Install
+        run: python -m pip install -e ".[dev]"
+      - name: Test
+        # No .env.local on a runner, which is the point: the suite must be
+        # hermetic rather than quietly depending on a developer's credentials.
+        run: python -m pytest -q --cov=aiscelapeus --cov-report=term-missing
+
+  web:
+    name: web
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Install
+        run: npm ci
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Lint
+        run: npm run lint
+      - name: Test
+        run: npm run test
+
+  contract:
+    name: contract (golden fixtures)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Install agent
+        working-directory: agent
+        run: python -m pip install -e ".[dev]"
+      - name: Install web
+        working-directory: web
+        run: npm ci
+      - name: Python writes and verifies goldens
+        working-directory: agent
+        run: python -m pytest -q -m contract
+      - name: TypeScript parses every golden
+        working-directory: web
+        run: npm run test:contract
+
+  meta:
+    name: meta (falsifiability)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: agent
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install
+        run: python -m pip install -e ".[dev]"
+      - name: Every test names its falsifier; no vacuous asserts; no untimed calls
+        run: python -m pytest -q tests/meta
+
+  harness:
+    name: harness (headless scenarios)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: agent
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install
+        run: python -m pip install -e ".[dev]"
+      - name: Scenarios
+        # FR-013: the headless suite is green in <=120s or it is not green.
+        timeout-minutes: 3
+        run: python -m aiscelapeus.harness --headless scenarios/

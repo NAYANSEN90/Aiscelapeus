@@ -14,6 +14,9 @@ __pycache__/
 agent/_probe.py
 agent/pip.log
 agent/pip.err
+*.egg-info/
+.coverage
+htmlcov/
 
 # node / next
 node_modules/
@@ -28,3 +31,6 @@ next-env.d.ts
 .DS_Store
 Thumbs.db
 *.log
+
+# vendored reference checkouts (not ours, do not commit)
+vendor/

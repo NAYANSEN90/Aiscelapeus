@@ -8,21 +8,26 @@ import { LEVEL_STYLES } from "@/lib/types";
 type Phase = "idle" | "connecting" | "live" | "error";
 
 function newSessionId() {
-  const stamp = new Date().toISOString().slice(5, 16).replace(/[-:T]/g, "");
-  return `inc-${stamp}-${Math.random().toString(36).slice(2, 6)}`;
+  // An incident ID is the only thing standing between a stranger and live
+  // audio of an emergency, because the token route grants on room name alone.
+  // The previous form - a known timestamp plus four base36 characters of
+  // Math.random - was roughly 20 bits of non-cryptographic randomness and
+  // guessable from a demo stage. crypto.randomUUID is 122 bits from a CSPRNG.
+  return `inc-${crypto.randomUUID()}`;
 }
 
 export default function ResponderPage() {
   const [room] = useState(() => new Room({ adaptiveStream: true, dynacast: true }));
   const [phase, setPhase] = useState<Phase>("idle");
   const [error, setError] = useState<string | null>(null);
-  const [sessionId, setSessionId] = useState("");
+  // Generated during the first render rather than in an effect: an effect
+  // renders once with an empty incident ID before correcting itself, and any
+  // code reading the ID in that window sees "".
+  const [sessionId] = useState(newSessionId);
   const [micLive, setMicLive] = useState(false);
   const [agentSpeaking, setAgentSpeaking] = useState(false);
 
   const stream = useTriageStream(room);
-
-  useEffect(() => setSessionId(newSessionId()), []);
 
   // Play the agent's audio as soon as it publishes.
   useEffect(() => {
