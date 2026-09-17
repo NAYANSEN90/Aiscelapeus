@@ -4,9 +4,12 @@ from __future__ import annotations
 
 import json
 import logging
+from collections.abc import AsyncIterable
 from typing import Any, Awaitable, Callable
 
-from livekit.agents import Agent, RunContext, function_tool
+from livekit.agents import Agent, ModelSettings, RunContext, function_tool
+from livekit.agents import llm as lk_llm
+from livekit.rtc import AudioFrame
 
 from .config import Settings
 from .escalation import SOURCE_TOOL, apply_hard_escalation
@@ -18,6 +21,15 @@ from .telemetry import span
 from .triage import (
     EscalationStatus,
     TriageState,
+)
+from .turn_gate import (
+    GATE_REJECTION_TOPIC,
+    RetrievedThisTurn,
+    buffer_stream,
+    gate_turn,
+    once,
+    rejection_payload,
+    rejection_span_attributes,
 )
 
 logger = logging.getLogger(__name__)
@@ -58,6 +70,12 @@ class AiscelapeusAgent(Agent):
         self.context = context
         self.state = state
         self.publish = publish
+        # What `lookup_protocol` retrieved on the CURRENT responder turn, and
+        # the only thing the output gate is allowed to treat as a citation.
+        # Its lifetime is the safety property - set in `lookup_protocol`,
+        # cleared in `on_user_turn_completed` - and it is documented on the type
+        # rather than here so there is one place to read it.
+        self.retrieved_this_turn = RetrievedThisTurn()
         # Two changes here, and the measured truth is that EITHER ONE alone
         # fixes the typecheck - neither is individually necessary. `Agent.__init__`
         # does `self._instructions = instructions` from a `str | Instructions`
@@ -181,6 +199,13 @@ class AiscelapeusAgent(Agent):
                     "protocol for this and escalate to a clinician."
                 ),
             }
+
+        # The citation record, set at the one moment the documents are actually
+        # handed to the model - so "cited" can only ever mean "was shown this
+        # turn". Recorded AFTER every refusal branch above returns, which is
+        # what stops a blank query, a zero-hit search or a TierViolation from
+        # leaving a citable id behind. Cleared by `on_user_turn_completed`.
+        self.retrieved_this_turn.record(hits)
 
         return {
             "found": True,
@@ -368,6 +393,158 @@ class AiscelapeusAgent(Agent):
                 "Do not go silent."
             ),
         }
+
+    # ------------------------------------------------------------ output gate
+    #
+    # THE SEAM, and why it is two nodes rather than one.
+    #
+    # `google.LLM` exposes no structured-output parameter, so the gate cannot be
+    # fed a model-declared `ClinicalTurn` (see turn_gate's module docstring).
+    # `Agent.tts_node` is the last point before audio synthesis and its own
+    # docstring supports overriding it for "specialized processing", so that is
+    # where the audio is gated.
+    #
+    # But `tts_node` alone is NOT sufficient, and this was measured rather than
+    # assumed: `livekit.agents.voice.agent_activity` tees the LLM text stream
+    # into two consumers - `audio_source`, which reaches `tts_node`, and
+    # `text_source`, which reaches `transcription_node` and from there the UI
+    # transcript. Overriding only `tts_node` would silence an invented dose
+    # while still printing it on the responder's screen and the doctor
+    # dashboard, which is the same defect one surface over. So both nodes gate,
+    # through the same `gate_turn` call, and neither owns a copy of the rule.
+
+    async def on_user_turn_completed(
+        self, turn_ctx: lk_llm.ChatContext, new_message: lk_llm.ChatMessage
+    ) -> None:
+        """Start a fresh citation record for this responder turn.
+
+        This is the CLEAR half of `RetrievedThisTurn`'s lifetime, and the hook
+        is chosen for its ordering rather than its name: the SDK awaits it
+        *before* scheduling the reply (`_user_turn_completed_impl` awaits the
+        hook, then schedules the speech), so the order within one turn is
+        clear -> model runs -> `lookup_protocol` records -> the nodes gate.
+
+        Without this, a protocol retrieved three turns ago would still satisfy
+        the citation check on a turn that retrieved nothing at all - the model
+        could speak a number from memory and the gate would find the id in its
+        record and approve it. That is the stale-citation hole `validate_turn`'s
+        docstring says the gate cannot detect for itself.
+        """
+        self.retrieved_this_turn.clear()
+
+    async def tts_node(
+        self, text: AsyncIterable[str], model_settings: ModelSettings
+    ) -> AsyncIterable[AudioFrame]:
+        """Gate the turn, then synthesise either it or the safe line.
+
+        Whole-turn buffering; the reasoning and its latency cost are on
+        `turn_gate.buffer_stream` rather than duplicated here.
+
+        `Agent.default.tts_node` is called with a rebuilt single-segment stream
+        rather than the original, because the original has been consumed to gate
+        it. The default node is what actually reaches the TTS, so the vendor
+        plugin stays behind the SDK's own seam and this override adds no vendor
+        knowledge.
+        """
+        spoken = await self._gated_text(await buffer_stream(text))
+        return Agent.default.tts_node(self, once(spoken), model_settings)
+
+    async def transcription_node(
+        self, text: AsyncIterable[str], model_settings: ModelSettings
+    ) -> AsyncIterable[str]:
+        """Gate the same turn on the way to the transcript surfaces.
+
+        The second consumer of the teed LLM stream. It runs `_gated_text` again
+        rather than reusing the audio path's answer, and that is deliberate:
+        the two nodes are driven by independent streams on independent tasks
+        with no ordering guarantee between them, so a cached answer would be a
+        cross-task race of exactly the kind this repo already has on record
+        (`last_trace`). `gate_turn` is pure and cheap - no model, no network, no
+        clock - so recomputing costs string work and buys the absence of shared
+        mutable state.
+
+        A rejected turn is NOT dropped from the transcript, it is REPLACED by
+        the safe line. A dropped turn would leave the dashboard showing the
+        responder answering something no record contains.
+        """
+        gated = await self._gated_text(await buffer_stream(text))
+
+        async def _stream() -> AsyncIterable[str]:
+            yield gated
+
+        return _stream()
+
+    async def _gated_text(self, spoken: str) -> str:
+        """The one gate call both nodes share: what may actually be said.
+
+        Returns the turn's own text when approved and `SAFE_LINE` when not -
+        `GateDecision.speech` owns that choice, so the substitution is not
+        re-decided here.
+
+        EVERY REJECTION IS OBSERVABLE, because a gate that silently swallows
+        turns is worse than no gate: the failure is invisible. A refusal emits
+        a span carrying the reason enum and a published event carrying the
+        audit detail. The split is `moss_context`'s and `_do_escalate`'s
+        existing rule - spans are not a PHI surface, the data channel already
+        is - and `turn_gate` owns which fields go where.
+
+        The publish is guarded for `main._handle_utterance`'s reason: a dead
+        data channel must not turn a refusal into an exception inside the audio
+        path, which would be a raise on the one path that exists to be safe.
+        Logged at ERROR, because a rejection nobody can see is the thing this
+        docstring just promised against.
+
+        NO ESCALATION IS TOUCHED HERE. The gate decides what is spoken; it
+        cannot ratchet a level, page a clinician, or undo either. Whatever
+        `escalation.py` already decided for this incident stands, and the
+        rejected turn is replaced with a line that itself says a clinician is
+        coming.
+        """
+        turn, decision = gate_turn(spoken, self.retrieved_this_turn)
+        if decision.approved:
+            return turn.speech
+
+        with span(
+            "triage.output_gate",
+            **rejection_span_attributes(
+                session_id=self.state.session_id, turn=turn, decision=decision
+            ),
+        ):
+            try:
+                await self.publish(
+                    GATE_REJECTION_TOPIC,
+                    rejection_payload(
+                        session_id=self.state.session_id, turn=turn, decision=decision
+                    ),
+                )
+            except Exception:  # noqa: BLE001 - a refusal must still be spoken
+                logger.exception(
+                    "publishing an output-gate rejection failed for session=%s; "
+                    "the turn is still refused",
+                    self.state.session_id,
+                )
+
+        logger.error(
+            "OUTPUT GATE REFUSED session=%s kind=%s reasons=%s cited=%s",
+            self.state.session_id,
+            turn.instruction_kind.value,
+            [reason.value for reason in decision.reasons],
+            list(turn.protocol_ids),
+        )
+
+        # `GateDecision.speech` is typed `str | None` because None is how it
+        # says "speak the turn's own text", and that branch already returned
+        # above. So None here would mean the decision reported REJECTED while
+        # resolving to no replacement - and falling back to `or ""` would put
+        # SILENCE on the voice path, which is the one output worse than either
+        # the turn or the safe line. A raise over a silent clamp (CLAUDE.md).
+        replacement = decision.speech
+        if replacement is None:
+            raise AssertionError(
+                "a rejected turn resolved to no replacement speech; "
+                f"reasons={[reason.value for reason in decision.reasons]}"
+            )
+        return replacement
 
     # -------------------------------------------------------------- internals
 

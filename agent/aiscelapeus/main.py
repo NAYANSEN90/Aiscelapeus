@@ -487,6 +487,34 @@ async def entrypoint(ctx: JobContext) -> None:
         min_interruption_duration=0.3,
         # Tool chains here are short: retrieve, record, answer.
         max_tool_steps=4,
+        # OFF, and this is a correctness requirement of the output gate rather
+        # than a tuning choice. The SDK defaults it ON
+        # (`voice.turn._PREEMPTIVE_GENERATION_DEFAULTS` is `enabled: True`),
+        # which starts a speculative reply - tool calls included - from an
+        # INTERIM transcript, before end-of-turn is confirmed.
+        #
+        # That breaks the citation record's lifetime, which the gate depends on.
+        # `AiscelapeusAgent.on_user_turn_completed` clears the record when the
+        # real turn is confirmed; a speculative `lookup_protocol` has by then
+        # already written into it, and the speculative speech is gated only
+        # afterwards - so a turn that genuinely retrieved and correctly cited a
+        # protocol is refused as MISSING_CITATION and the responder gets the safe
+        # line instead of the depth they need. Worse, an ABANDONED speculation's
+        # write is not forcibly cancelled, so a document retrieved for a
+        # discarded guess at the utterance could ground a number in the turn that
+        # actually ran - a citation for text the model was shown for a different
+        # question, which is the permissive direction.
+        #
+        # Found by independent review, which traced it through
+        # `agent_activity.on_preemptive_generation`. Disabled rather than worked
+        # around inside the gate: making the record survive speculation would
+        # mean tracking which speech handle each retrieval belonged to, i.e.
+        # reimplementing the SDK's own speculation bookkeeping to defend a safety
+        # property. Turning the speculation off is the one-line answer, and the
+        # latency it buys back is not worth a gate that misfires on correct
+        # guidance - `output_gate`'s docstring is explicit that such a gate is
+        # one somebody switches off.
+        preemptive_generation=False,
     )
 
     # The agent already owns the escalation action and the state broadcast, so
@@ -537,11 +565,35 @@ async def entrypoint(ctx: JobContext) -> None:
     await session.start(agent, room=ctx.room)
 
     await publish("triage.state", state.to_payload())
+    # THE OPENING TURN MUST BE A QUESTION AND NOTHING ELSE, and that is now a
+    # requirement rather than a style preference.
+    #
+    # This turn goes through the output gate like any other (the node overrides
+    # on `AiscelapeusAgent` apply to `generate_reply` too), and it runs before
+    # any user turn - so `on_user_turn_completed` has not fired, no
+    # `lookup_protocol` has happened, and the citation record is empty by
+    # construction. A turn `turn_gate.classify` reads as a clinical instruction
+    # therefore CANNOT be cited and is refused.
+    #
+    # The previous wording asked for a statement AND a question in one sentence
+    # ("say you are listening and ask what has happened"), which a model renders
+    # as "I'm listening - what happened, and is the person responsive?" - a
+    # mixed declarative that classifies as a clinical instruction. The first
+    # thing a responder heard would have been the safe line. Found by
+    # independent review, and confirmed by running `classify` over the three
+    # plausible renderings.
+    #
+    # Fixed here rather than by exempting the greeting in the gate: an exemption
+    # keyed on "this is the first turn" is a hole a malfunctioning model could
+    # be in when it speaks, and the requirement costs nothing - `prompts.py`
+    # instruction 1 already says "establish in ONE QUESTION what happened".
+    # This aligns the entrypoint with the prompt it was contradicting.
     await session.generate_reply(
         instructions=(
-            "Open the call. In one short sentence, say you are listening and ask "
-            "what has happened and whether the person is responsive and breathing. "
-            "Do not give any instruction yet."
+            "Open the call. Ask one short question and say nothing else: what has "
+            "happened, and whether the person is responsive and breathing. Phrase "
+            "it as a question only - do not add a statement about yourself, and do "
+            "not give any instruction yet."
         )
     )
 
