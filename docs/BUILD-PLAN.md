@@ -359,6 +359,42 @@ measure what it costs, then optimise back toward 10 ms with a known-good baselin
 **Do not** switch to `moss-mediumlm` (ties at 64 %), and **do not** remove the title prefix
 in `as_documents()` — dropping it costs top-1 (4/10 → 3/10). Current code is right there.
 
+### 8.3a Re-rank is DEPRIORITISED — measured 18 Sept, after the corpus work
+
+> **The premise has largely closed.** §8.3 below was written when top-1 was 64 % and
+> recall@5 was 88 %: a 24-point gap meant the right protocol was usually *in* the candidate
+> set but not first, which is exactly what a re-rank layer fixes.
+>
+> Re-measured against real Moss on the augmented corpus (`23a9139`), same committed query
+> set, alpha 0.8:
+>
+> | | |
+> |---|---|
+> | recall@1 | **18/20** |
+> | recall@3 | 19/20 |
+> | recall@5 | 19/20 |
+> | recall@8 | 20/20 |
+> | worst rank, **critical** | **1** |
+>
+> **All eight critical queries are at rank 1.** Only two of twenty rank below first, and both
+> are non-critical: `seizure` (rank 3) and `heat-stroke` (rank 6).
+>
+> So a re-rank layer built now would add a bounded LLM reasoning step, a Class-1/2 tier path
+> and a span per pull, in order to reorder two non-critical protocols. That is a poor severity
+> trade against subsystems still entirely unbuilt — **B4's output gate**, **B5's harness**, and
+> **Spike 2**, none of which have any implementation at all.
+>
+> RET-C02's fragility is real and is recorded in `23a9139`: 8/8 rests on the single word
+> "pool", and `drowning-rescue` vs `airway-recovery-position` is structurally inseparable. But
+> fragility is an argument for **headroom**, and top-8 retrieval plus the corpus discriminators
+> already supply it. Re-rank is now an optimisation, not a correctness fix.
+>
+> **Revisit when** any of these is true: a critical query drops below rank 1 again; the corpus
+> grows enough that recall@1 falls (the paediatric documents are the next planned growth and
+> will compete with the adult forms); or `seizure`/`heat-stroke` become critical categories.
+> The design in §8.3 stays as written — it was the right shape, and the constraints it lists
+> still bind whenever it is built.
+
 ### 8.3 The re-rank design, not a re-query loop
 
 The multi-pull direction holds, but the evidence reshapes it. **Recall@5 is 88 % and
