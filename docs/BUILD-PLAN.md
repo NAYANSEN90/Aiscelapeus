@@ -166,7 +166,25 @@ Pure domain and seams. 62 tests, hermetic, 0.17 s.
 >
 > **⚠ B2 changed WHERE the rule runs, not WHAT it recognises.** See the new blocker below.
 
-### B2.1 — `phrases.py` has holes in the net itself — **OPEN, now the highest-severity item**
+### B2.1 — `phrases.py` net defects — **DONE** (18 Sept, `7e64624`)
+
+> **Nine holes closed, all verified by execution.** The five from the review, three more
+> found by independent review of that fix, and one more found by reviewing that review.
+> Every one was *silence on a reported life threat*.
+>
+> `_NEGATION_WINDOW = 3` is deleted. The review's recommended clause-scoped lookback was
+> implemented and then **deleted too**: reverting it changed no outcome anywhere in the
+> corpus, because the leftward walk already halts at the first content word. A safety
+> mechanism no test can distinguish from its own absence is not evidence.
+>
+> Tests 1394 → 1707; corpus 38 → 68 entries; 15 mutants all killed by a named test.
+>
+> **Remaining wart, flagged not hidden:** `_contradicted_later`'s `.{0,40}?` is still a flat
+> character window — same class as the deleted `_NEGATION_WINDOW`. On the *suppressing* side
+> a too-short window over-fires, which is the safe direction, and probing found no further
+> defect. Low priority, not zero.
+
+### B2.1 — original entry, retained for the record
 
 `docs/reviews/2026-09-17-phrases-negation-defects.md` records **five defects verified by
 execution** against the real module, found by writing the expected markers for 47 responder
