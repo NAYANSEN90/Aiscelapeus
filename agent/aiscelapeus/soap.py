@@ -8,11 +8,11 @@ timestamped, so the model has far less room to invent.
 from __future__ import annotations
 
 import logging
-from typing import Any
 
 from openai import AsyncOpenAI
 
 from .config import Settings
+from .ports import FactRecord
 from .prompts import PROMPT_VERSION, build_soap_instructions
 from .telemetry import record_llm_usage, span
 from .triage import TriageState
@@ -20,14 +20,23 @@ from .triage import TriageState
 logger = logging.getLogger(__name__)
 
 
-def _format_timeline(timeline: list[dict[str, Any]]) -> str:
+def _format_timeline(timeline: list[FactRecord]) -> str:
+    """Render the timeline for the SOAP prompt.
+
+    Takes `FactRecord`s, so `elapsed_s` is already a float and `kind` already a
+    validated enum. The previous dict version re-parsed both at this use site -
+    `float(fact.get("elapsed_s", 0) or 0)`, and a `.get("kind",
+    "observation")` default that turned a fact with a missing classification
+    into a plausible-looking observation right here, in the text a clinician
+    signs off on. The adapter now raises on that instead.
+    """
     if not timeline:
         return "(no facts recorded)"
     lines = []
     for fact in timeline:
-        elapsed = float(fact.get("elapsed_s", 0) or 0)
-        stamp = f"T+{int(elapsed) // 60:02d}:{int(elapsed) % 60:02d}"
-        lines.append(f"{stamp} [{fact.get('kind', 'observation')}] {fact.get('text', '')}")
+        elapsed = int(fact.elapsed_s)
+        stamp = f"T+{elapsed // 60:02d}:{elapsed % 60:02d}"
+        lines.append(f"{stamp} [{fact.kind.value}] {fact.text}")
     return "\n".join(lines)
 
 
@@ -44,7 +53,7 @@ async def generate_soap_note(
     *,
     settings: Settings,
     session_id: str,
-    timeline: list[dict[str, Any]],
+    timeline: list[FactRecord],
     state: TriageState,
 ) -> str:
     """Produce the SOAP note. Returns markdown."""

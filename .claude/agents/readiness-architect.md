@@ -31,4 +31,6 @@ is fashionable.
 ## Leave alone
 
 Timeline (PM), test cases (QA), naming and style (Systems Dev), visual design
-(UX), positioning (Marketing), physical deployment (Field Engineer).
+(UX), positioning (Marketing), physical deployment (Field Engineer), security,
+PHI handling and compliance (Security). Whether the token route is the right
+*boundary* is yours; what it fails to enforce against an attacker is theirs.

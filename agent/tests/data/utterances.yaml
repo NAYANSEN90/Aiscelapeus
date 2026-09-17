@@ -1,0 +1,187 @@
+# The corpus the deterministic escalation rule is judged against.
+#
+# Each entry is something a responder could plausibly say on a real call, and
+# what the rule must conclude. `expect` is the marker id that should fire, or
+# null when nothing should.
+#
+# This file is the specification. The matcher is an implementation of it.
+# Phrasings here came from three sources: the original marker list, utterances
+# the readiness reviews measured as missed, and negations that wrongly fired.
+
+# ---------------------------------------------------------------- must escalate
+# Breathing absent or failing.
+- text: "He's not breathing"
+  expect: not_breathing
+  why: baseline phrasing the original list already caught
+
+- text: "She isn't breathing"
+  expect: not_breathing
+  why: straight apostrophe
+
+- text: "She isn’t breathing"
+  expect: not_breathing
+  why: >
+    U+2019 curly apostrophe. Deepgram runs with smart_format enabled, which
+    emits exactly this character, so this is the form that actually arrives
+    from production STT - and the one the original substring list missed.
+
+- text: "He has stopped breathing"
+  expect: not_breathing
+  why: past-tense phrasing
+
+- text: "He's barely breathing"
+  expect: inadequate_breathing
+  why: >
+    Agonal or inadequate breathing is an arrest presentation. "barely
+    breathing" contains no marker from the original list, so it scored as
+    nothing at all.
+
+- text: "It sounds like agonal breathing"
+  expect: inadequate_breathing
+  why: clinical term for the gasping that accompanies arrest
+
+- text: "She's just gasping"
+  expect: inadequate_breathing
+  why: lay phrasing for the same presentation
+
+- text: "He's making gasping noises"
+  expect: inadequate_breathing
+  why: lay phrasing, verb form
+
+# Circulation absent.
+- text: "I can't find a pulse"
+  expect: no_pulse
+  why: baseline
+
+- text: "I cannot find a pulse"
+  expect: no_pulse
+  why: expanded contraction, as smart_format sometimes renders it
+
+- text: "There's no heartbeat"
+  expect: no_pulse
+  why: >
+    Lay phrasing for the same finding. The original list had "no pulse" only,
+    so a responder using the everyday word was not heard.
+
+- text: "I can't feel a heartbeat"
+  expect: no_pulse
+  why: lay phrasing, verb form
+
+- text: "He's gone into cardiac arrest"
+  expect: cardiac_arrest
+  why: baseline
+
+- text: "I think he went into arrest"
+  expect: cardiac_arrest
+  why: >
+    Clipped form. "arrest" without "cardiac" was not in the original list.
+
+# Consciousness absent.
+- text: "She's unresponsive"
+  expect: unresponsive
+  why: baseline
+
+- text: "He's unconscious"
+  expect: unresponsive
+  why: >
+    The single most likely word a bystander uses, and it was absent from the
+    original marker list entirely.
+
+- text: "He's out cold"
+  expect: unresponsive
+  why: colloquial, common under stress
+
+- text: "He collapsed and isn't moving"
+  expect: unresponsive
+  why: describes the finding without naming it
+
+- text: "She's not responding to me"
+  expect: unresponsive
+  why: baseline phrasing with a trailing object
+
+# Perfusion failing.
+- text: "His lips are turning blue"
+  expect: cyanosis
+  why: baseline
+
+- text: "He's gone blue"
+  expect: cyanosis
+  why: baseline
+
+- text: "He's blue around the lips"
+  expect: cyanosis
+  why: >
+    Same clinical sign, different word order. Substring matching on "gone
+    blue" or "turning blue" missed it.
+
+# Airway.
+- text: "She can't breathe"
+  expect: cannot_breathe
+  why: baseline
+
+- text: "He's choking and can't get any air"
+  expect: cannot_breathe
+  why: baseline
+
+- text: "We pulled him out of the pool, he's drowning"
+  expect: drowning
+  why: baseline
+
+- text: "The child drowned in the pool"
+  expect: drowning
+  why: past tense
+
+# ------------------------------------------------------------- must NOT escalate
+# Negation. These forced an irreversible Level 5 on the original matcher.
+- text: "The casualty is NOT unresponsive"
+  expect: null
+  why: >
+    Explicit negation of the finding. Substring matching saw "unresponsive"
+    and pinned the incident at Critical for the rest of the call.
+
+- text: "He was not breathing but now he is breathing again"
+  expect: null
+  why: >
+    Resolved arrest, reported as a narrative. The responder is telling you the
+    patient recovered; the matcher heard the worst two words in the sentence.
+
+- text: "He was unresponsive but he's awake now"
+  expect: null
+  why: past-tense finding, explicitly contradicted
+
+- text: "No cardiac arrest here, just a panic attack"
+  expect: null
+  why: the responder is ruling the finding out
+
+- text: "She's not responding to the painkiller"
+  expect: null
+  why: >
+    "not responding" about a medication, not about consciousness. Same words,
+    different subject.
+
+# Normal findings. A matcher that fires on these is unusable.
+- text: "Breathing is normal"
+  expect: null
+  why: negative control
+
+- text: "His pulse is strong and regular"
+  expect: null
+  why: negative control
+
+- text: "She's conscious and talking to me"
+  expect: null
+  why: negative control
+
+- text: "He's awake and responding to questions"
+  expect: null
+  why: negative control, contains "responding"
+
+- text: "The bleeding has stopped"
+  expect: null
+  why: >
+    Negative control containing "stopped", to catch a matcher that becomes too
+    eager about that word while fixing "stopped breathing".
+
+- text: "I've put a dressing on the wound"
+  expect: null
+  why: negative control, ordinary intervention report

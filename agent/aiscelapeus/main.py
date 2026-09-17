@@ -60,7 +60,27 @@ async def entrypoint(ctx: JobContext) -> None:
 
     # --- context ------------------------------------------------------------
     context = EmergencyContext(config=settings.moss, session_id=session_id)
-    await context.connect()
+    # `connect` reports rather than raises, so the failure is handled here
+    # instead of killing the job before the responder is greeted. Retrieval
+    # will fail closed - the tier gate raises TierViolation on a Class-0 lookup
+    # while the corpus is not resident - so the agent cannot answer from an
+    # unloaded index and pass it off as a cited protocol.
+    outcome = await context.connect()
+    if not outcome.ok:
+        logger.error(
+            "Moss unavailable for %s (%s); starting without protocol retrieval",
+            session_id,
+            outcome.error,
+        )
+    elif outcome.resumed_existing_session:
+        # Documents already under this index name mean a previous run's records
+        # are still there, which is the condition that silently merges two
+        # incidents into one audit trail. Previously the count was discarded.
+        logger.warning(
+            "Session index %s already holds %d documents - resuming, not starting clean",
+            context.session_index_name,
+            outcome.loaded_doc_count,
+        )
 
     state = TriageState(session_id=session_id)
 
@@ -155,10 +175,15 @@ async def entrypoint(ctx: JobContext) -> None:
             except Exception:  # noqa: BLE001
                 logger.exception("SOAP generation failed for %s", session_id)
 
-            try:
-                await context.archive()
-            except Exception:  # noqa: BLE001
-                logger.exception("Moss archive failed for %s", session_id)
+            # `archive` reports rather than raises: it is the only durable
+            # write in the system, so "did the incident record reach storage"
+            # must be a value the caller inspects, not an exception that may or
+            # may not have been thrown.
+            archived = await context.archive()
+            if not archived.ok:
+                logger.error(
+                    "Moss archive failed for %s: %s", session_id, archived.error
+                )
 
             await context.aclose()
 

@@ -29,4 +29,6 @@ validation. You do not accept "it worked when I ran it" as evidence of anything.
 ## Leave alone
 
 Roadmap and scope (PM), architecture (Architect), code style (Systems Dev),
-interface (UX), story (Marketing), field conditions (Field Engineer).
+interface (UX), story (Marketing), field conditions (Field Engineer),
+security, PHI handling and compliance (Security). Malformed-input tests are
+yours; whether that input is an attack is theirs.

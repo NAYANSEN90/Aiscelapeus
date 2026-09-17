@@ -1,0 +1,131 @@
+# Labelled retrieval query set -- satisfies RET-C04 (BUILD-PLAN 8.5).
+#
+# One entry per protocol in `agent/aiscelapeus/protocols.py` (20 protocols, 20 queries).
+#
+# PHRASING RULE, and it is the whole point of this file: each `text` is written the way a
+# panicking bystander or a responder on scene would actually say it out loud. It deliberately
+# does NOT reuse the protocol title, and avoids the protocol's own vocabulary wherever a
+# layperson would not use it. A query set phrased in protocol vocabulary measures string
+# overlap, not retrieval -- the prior measurement recorded exactly that trap: an early pass
+# scored 80% top-1 purely because the queries leaked protocol wording, and the honest figure
+# on colloquial paraphrase was far lower. See
+# `docs/evidence/2026-09-17-moss-retrieval-verified.md` section 2.
+#
+# CONCRETE TEST APPLIED, because "colloquial" is otherwise just the author's opinion. For each
+# query, compute the words it shares with its target document that appear in NO OTHER document
+# in the corpus -- unique-to-target giveaways. Those are what make a query trivially easy.
+# An independent review of the first draft flagged six queries; the mechanical check found nine
+# such words across eight queries (crushing, silent, clammy, pale, straighten, lips, shaky,
+# dirty, shivering), all since rewritten. **The set currently scores zero.** Re-run that check
+# after editing any query here; removing those nine words cost 5 points of top-1 and one
+# critical query, so this is not a cosmetic concern.
+#
+# Words that unavoidably appear in both query and document are the ones a real caller really
+# would say ("tourniquet", "seizure", "diabetic") and that also appear in several documents, so
+# they give nothing away. Nothing else is borrowed.
+#
+# `critical: true` marks the escalation-critical categories named by RET-C02 -- cardiac,
+# airway, haemorrhage, drowning -- which demand 100% top-1. `category` mirrors the protocol's
+# own `category` field so per-category accuracy can be computed without a second mapping.
+
+queries:
+  # ---------------------------------------------------------------- cardiac
+  - text: "he just collapsed and he's not waking up and I don't think he's breathing what do I do"
+    expect: bls-adult-cpr
+    category: cardiac
+    critical: true
+
+  - text: "someone ran up with one of those shock box things from the wall how do I use it on him"
+    expect: bls-aed
+    category: cardiac
+    critical: true
+
+  - text: "my dad's clutching his chest, says it feels like a big weight pressing down on him, he's grey and pouring sweat"
+    expect: chest-pain-cardiac
+    category: cardiac
+    critical: true
+
+  # ---------------------------------------------------------------- haemorrhage
+  - text: "his leg is cut open and the blood is shooting out I can't make it stop I have a tourniquet"
+    expect: bleed-tourniquet
+    category: haemorrhage
+    critical: true
+
+  - text: "the wound is right up in his armpit and it keeps filling with blood I can't get a strap round it"
+    expect: bleed-pressure-packing
+    category: haemorrhage
+    critical: true
+
+  # ---------------------------------------------------------------- airway
+  - text: "she's got food stuck, no sound coming out at all now, can't get any air in and she's going blue"
+    expect: airway-choking-adult
+    category: airway
+    critical: true
+
+  - text: "he's out cold but I can feel him breathing fine should I leave him on his back or turn him"
+    expect: airway-recovery-position
+    category: airway
+    critical: true
+
+  # ---------------------------------------------------------------- drowning
+  - text: "we pulled the kid out of the pool he's floppy and not breathing what do I do first"
+    expect: drowning-rescue
+    category: drowning
+    critical: true
+
+  # ---------------------------------------------------------------- circulation
+  - text: "she's white as a sheet and her skin's cold and damp, heart going like mad but she's fading and rambling"
+    expect: shock-management
+    category: circulation
+
+  # ---------------------------------------------------------------- burns
+  - text: "he spilled boiling water down his arm and the skin's blistering what do I put on it"
+    expect: burns-thermal
+    category: burns
+
+  # ---------------------------------------------------------------- trauma
+  - text: "her arm is bent at a weird angle after she fell off the ladder, should I pull it back into line"
+    expect: fracture-immobilise
+    category: trauma
+
+  - text: "he dived into shallow water headfirst and can't feel his legs, do I move him"
+    expect: spinal-precaution
+    category: trauma
+
+  # ---------------------------------------------------------------- allergy
+  - text: "she ate something with nuts in it and her whole mouth and throat are puffing up, she's whistling when she breathes, she carries a pen"
+    expect: anaphylaxis
+    category: allergy
+
+  # ---------------------------------------------------------------- neuro
+  - text: "he's on the floor shaking all over and his eyes have rolled back, should I hold him still"
+    expect: seizure
+    category: neuro
+
+  - text: "her face has dropped on one side and her words are coming out all slurred and one arm won't lift"
+    expect: stroke-fast
+    category: neuro
+
+  # ---------------------------------------------------------------- metabolic
+  - text: "he's diabetic and he's pouring sweat and trembling and talking nonsense and turning nasty on me"
+    expect: hypoglycaemia
+    category: metabolic
+
+  # ---------------------------------------------------------------- wounds
+  - text: "I scraped my knee on the pavement, there's grit in it and it's still weeping a little"
+    expect: minor-wound
+    category: wounds
+
+  # ---------------------------------------------------------------- environmental
+  - text: "he was running in the sun all afternoon and now he's burning up and talking rubbish and can't stand"
+    expect: heat-stroke
+    category: environmental
+
+  - text: "we got him out of the freezing water, he's shaking uncontrollably and slurring and can't work his hands"
+    expect: hypothermia
+    category: environmental
+
+  # ---------------------------------------------------------------- general
+  - text: "there's been a crash, wires are down across the road, can I go to him yet or what do I check first"
+    expect: scene-safety
+    category: general

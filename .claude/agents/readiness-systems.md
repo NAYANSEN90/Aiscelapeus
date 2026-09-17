@@ -31,4 +31,9 @@ judge code by whether you could operate, debug, and safely change it.
 ## Leave alone
 
 Scope (PM), test strategy (QA), high-level structure (Architect), interface
-(UX), story (Marketing), field conditions (Field Engineer).
+(UX), story (Marketing), field conditions (Field Engineer), security, PHI
+handling and compliance (Security). Config hygiene and dependency pinning are
+yours; secret exposure and supply-chain attack surface are theirs.
+CI/CD, build reproducibility and release mechanics belong to DevOps; pipeline
+security gates belong to DevSecOps. Judge the code and its operability, not the
+delivery machinery.

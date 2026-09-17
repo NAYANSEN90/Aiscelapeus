@@ -1,15 +1,27 @@
 ---
-description: Multi-persona project readiness review - 7 expert personas judge the project against demo and production bars
-argument-hint: "[persona,persona] (optional; default all 7)"
+description: Multi-persona project readiness review - 18 expert personas judge the project against demo and production bars
+argument-hint: "[persona,persona|roles|principles] (optional; default all 18)"
 ---
 
 # Project readiness review
 
 Run a multi-persona readiness review of this project. `$ARGUMENTS`, if present,
-is a comma-separated subset of persona keys; otherwise run all seven.
+is a comma-separated subset of persona keys; otherwise run all eighteen.
+The shorthand `roles` selects the eleven role personas, `principles` the seven
+principle personas.
 
-Persona keys: `pm`, `qa`, `architect`, `ux`, `systems`, `marketing`, `field`
-(agent names are `readiness-<key>`).
+**Role personas** (what part of the system): `pm`, `qa`, `architect`,
+`system-design`, `ux`, `systems`, `marketing`, `field`, `security`, `devops`,
+`devsecops`. `system-design` is dual-mode: in a review it judges layer placement
+and separation of concerns; in a design-council session it decomposes a
+requirement into layer-assigned tasks.
+
+**Principle personas** (what class of mistake): `proof`, `test-behavior`,
+`domain-model`, `boundary`, `type-discipline`, `shared-state`, `idempotency`.
+Adapted from the `principle-*` skills in `cursor/plugins` (pstack); each applies
+one rule as a lens.
+
+Agent names are `readiness-<key>` for both groups.
 
 ## Procedure
 
@@ -32,11 +44,21 @@ predict their findings.
 When all have returned, build the report. The aggregation is where the value is
 — not in concatenating seven opinions:
 
-- **Score matrix.** Table of every persona's DEMO and PROD score, with means.
+- **Score matrix.** Table of every persona's DEMO and PROD score. Report the
+  role-persona mean and the principle-persona mean **separately**, then the
+  overall. The two groups measure different things and a blended number hides
+  the disagreement between them.
 - **Convergence.** Issues raised independently by three or more personas. This is
-  the highest-signal section — lead with it. Name which personas converged.
+  the highest-signal section — lead with it. Name which personas converged, and
+  mark any convergence that spans **both** groups as `CROSS-GROUP` — a defect
+  found from both a role lens and a principle lens is the strongest signal in
+  the report. Convergence among principle personas alone is weaker than it looks,
+  since they share a source and may restate one defect in seven vocabularies;
+  collapse those into a single finding naming the root cause.
 - **Contested.** Where personas disagree, or where one persona's blocker is
-  another's strength. State both sides; do not resolve it silently.
+  another's strength. State both sides; do not resolve it silently. A principle
+  persona demanding a structure that a role persona calls unnecessary ceremony is
+  a real tradeoff — present it as one, do not average it away.
 - **Unverified claims.** Anything a persona marked `UNVERIFIED CONCERN`, kept
   separate from evidenced findings.
 - **Per-persona detail.** Each block verbatim.

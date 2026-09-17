@@ -18,7 +18,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from aiscelapeus.config import MossConfig  # noqa: E402
+from aiscelapeus.config import MossConfig, _Env, read_env  # noqa: E402
 from aiscelapeus.moss_context import seed_protocol_index  # noqa: E402
 from aiscelapeus.protocols import PROTOCOLS  # noqa: E402
 
@@ -69,7 +69,18 @@ async def main() -> None:
     parser.add_argument("--check", action="store_true", help="only run latency checks")
     args = parser.parse_args()
 
-    config = MossConfig.from_env()
+    # Reading the environment is an explicit argument now (see config.py). This
+    # script still called the old no-argument `MossConfig.from_env()` and had
+    # been broken since that refactor -- which is why the configured index had
+    # never been created. A script outside the test suite's import graph, with no
+    # type checker running, had nothing to catch it.
+    #
+    # Only the Moss settings are resolved, deliberately. `Settings.load()` also
+    # requires OPENAI_API_KEY and ELEVENLABS_API_KEY, and both vendors were
+    # dropped in docs/WORKLOG.md Session 2 (Gemini for the LLM, Deepgram Aura-2
+    # for TTS) -- a migration that reached .env but never reached config.py.
+    # Building a search index should not require TTS credentials in any case.
+    config = MossConfig.from_env(_Env(read_env()))
 
     if not args.check:
         logger.info("Seeding %d protocols into %s", len(PROTOCOLS), config.protocols_index)

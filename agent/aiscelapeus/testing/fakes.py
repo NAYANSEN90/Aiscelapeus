@@ -16,14 +16,20 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from ..moss_context import RetrievalResult, RetrievalTrace, Retrieved
 from ..ports import (
     ArchiveOutcome,
     ConnectOutcome,
     FactKind,
     FactRecord,
     LatencyClass,
-    TierViolation,
+    MossPort,
+)
+from ..retrieval import (
+    RetrievalRequest,
+    RetrievalResult,
+    RetrievalTrace,
+    Retrieved,
+    require_tier,
 )
 
 
@@ -36,6 +42,11 @@ class RecordedCall:
     latency_class: LatencyClass | None = None
     kind: FactKind | None = None
     text: str | None = None
+    #: The whole request, so a test can assert on the alpha and top_k that
+    #: actually reached the store rather than only on the query text. That is
+    #: what makes "the refactor changed no ranking input" an assertion about
+    #: values passed through rather than about a call having happened.
+    request: RetrievalRequest | None = None
 
 
 @dataclass
@@ -60,14 +71,36 @@ class FakeMoss:
     reported_wall_ms: float = 1.0
     latency_budget_ms: float = 10.0
     loaded_doc_count: int = 0
+    # Whether the protocol corpus is resident. Defaults True so the ordinary
+    # fake is usable without a connect() call; a test sets it False to stand in
+    # for the real window between client-up and index-loaded, in which a
+    # Class-0 lookup is a network hop.
+    loaded: bool = True
+    # Whether the session store is in-process. True matches
+    # `MossClient.session` today; False stands in for the network-backed
+    # session tier B3 introduces, so the enforcement point can be exercised
+    # before that store exists.
+    session_in_process: bool = True
+    # The incident clock this fake reports, in seconds. Scripted, never real.
+    elapsed_s: float = 0.0
 
     calls: list[RecordedCall] = field(default_factory=list)
     facts: list[FactRecord] = field(default_factory=list)
     connected: bool = False
     closed: bool = False
-    checkpoints: int = 0
     archived: bool = False
     _seq: int = 0
+
+    # --------------------------------------------------------------- identity
+
+    @property
+    def elapsed_seconds(self) -> float:
+        """A scripted incident clock, so elapsed-time answers are deterministic.
+
+        A settable number rather than a real clock: a test asserting on "how
+        long since the tourniquet" must not depend on how fast the suite runs.
+        """
+        return self.elapsed_s
 
     # ------------------------------------------------------------- lifecycle
 
@@ -92,43 +125,49 @@ class FakeMoss:
 
     # ------------------------------------------------------------- retrieval
 
-    async def lookup_protocol(
-        self,
-        query: str,
-        *,
-        categories: list[str] | None = None,
-        top_k: int | None = None,
-        latency_class: LatencyClass = LatencyClass.VOICE_TURN,
-    ) -> RetrievalResult:
+    async def lookup_protocol(self, request: RetrievalRequest) -> RetrievalResult:
         self.calls.append(
-            RecordedCall(method="lookup_protocol", query=query, latency_class=latency_class)
+            RecordedCall(
+                method="lookup_protocol",
+                query=request.query,
+                latency_class=request.latency_class,
+                request=request,
+            )
+        )
+        # The tier gate, through the same function the real adapter calls, so
+        # `loaded` on this fake reproduces the real "corpus not resident yet"
+        # window rather than a second, differently-behaving imitation of it.
+        require_tier(self.protocols_index, request.latency_class, in_process=self.loaded)
+        if "query" in self.fail_on:
+            raise RuntimeError("fake query failure")
+        return self._result(self.protocols_index, request)
+
+    async def recall(self, request: RetrievalRequest) -> RetrievalResult:
+        self.calls.append(
+            RecordedCall(
+                method="recall",
+                query=request.query,
+                latency_class=request.latency_class,
+                request=request,
+            )
+        )
+        require_tier(
+            f"session-{self.session_id}",
+            request.latency_class,
+            in_process=self.session_in_process,
         )
         if "query" in self.fail_on:
             raise RuntimeError("fake query failure")
-        return self._result(self.protocols_index, query, top_k)
+        return self._result(f"session-{self.session_id}", request)
 
-    async def recall(
-        self,
-        query: str,
-        *,
-        top_k: int | None = None,
-        latency_class: LatencyClass = LatencyClass.VOICE_TURN,
-    ) -> RetrievalResult:
-        self.calls.append(
-            RecordedCall(method="recall", query=query, latency_class=latency_class)
-        )
-        if "query" in self.fail_on:
-            raise RuntimeError("fake query failure")
-        return self._result(f"session-{self.session_id}", query, top_k)
-
-    def _result(self, index: str, query: str, top_k: int | None) -> RetrievalResult:
+    def _result(self, index: str, request: RetrievalRequest) -> RetrievalResult:
+        query = request.query
         hits: list[Retrieved] = []
         for needle, scripted in self.scripted.items():
             if needle.lower() in query.lower():
                 hits = list(scripted)
                 break
-        if top_k is not None:
-            hits = hits[:top_k]
+        hits = hits[: request.top_k]
         trace = RetrievalTrace(
             index=index,
             query=query,
@@ -173,10 +212,6 @@ class FakeMoss:
         self.calls.append(RecordedCall(method="timeline"))
         return list(self.facts)
 
-    async def checkpoint(self) -> None:
-        self.calls.append(RecordedCall(method="checkpoint"))
-        self.checkpoints += 1
-
     async def archive(self) -> ArchiveOutcome:
         self.calls.append(RecordedCall(method="archive"))
         if "archive" in self.fail_on:
@@ -191,6 +226,20 @@ class FakeMoss:
 
     def voice_turn_calls(self) -> list[RecordedCall]:
         return [c for c in self.calls if c.latency_class is LatencyClass.VOICE_TURN]
+
+    def requests(self, method: str) -> list[RetrievalRequest]:
+        """Every request that reached `method`, in order."""
+        return [
+            call.request
+            for call in self.calls
+            if call.method == method and call.request is not None
+        ]
+
+
+# The fake is held to the same port as the real adapter, by the same mechanism.
+# A fake that has drifted from the port is worse than no fake: every test using
+# it passes against a contract the production code does not implement.
+_: MossPort = FakeMoss()
 
 
 @dataclass
@@ -228,6 +277,12 @@ class FakeNetworkStore:
     Stands in for the deep-tier caches. Its only real job is to raise when
     asked to serve a Class-0 call, so a test can prove the voice path never
     touches it.
+
+    It now goes through `retrieval.require_tier`, the same function the real
+    adapter calls, with `in_process=False` because a network store never is.
+    Previously this class had its own hand-written `if latency_class is
+    VOICE_TURN: raise` - the only TierViolation raise in the repo - so the rule
+    had two implementations and the production one did not exist.
     """
 
     name: str = "redis"
@@ -240,8 +295,7 @@ class FakeNetworkStore:
         latency_class: LatencyClass = LatencyClass.PREFETCH,
         **_: object,
     ) -> list[Retrieved]:
-        if latency_class is LatencyClass.VOICE_TURN:
-            raise TierViolation(self.name, latency_class)
+        require_tier(self.name, latency_class, in_process=False)
         self.calls.append(
             RecordedCall(method="search_deep", query=query, latency_class=latency_class)
         )

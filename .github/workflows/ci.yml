@@ -2,6 +2,25 @@ name: CI
 
 # The register marked requirements BUILT with "CI-asserted" evidence while no
 # CI existed. Everything asserted here is asserted by something that runs.
+#
+# That claim was itself untrue until 17 Sept 2026: of the five jobs declared
+# here, two targeted files that did not exist (`meta`, `harness`) and two
+# passed while collecting zero tests (`contract`, and `web`'s test step via
+# --passWithNoTests). A job that passes vacuously is worse than no job, because
+# it launders an absence of evidence into a green tick.
+#
+# What this workflow asserts NOW, and nothing more:
+#   agent - mypy typechecks aiscelapeus/, and the hermetic pytest suite runs.
+#   meta  - every test in tests/unit names its falsifier and really asserts
+#           something. Verified by adding deliberately-bad tests and confirming
+#           each was caught.
+#   web   - the TypeScript typechecks and lints. Its test step is disabled
+#           because web/ has no test files; see the note on that step.
+#
+# `contract` and `harness` are commented out below, each with the reason and
+# the condition for restoring it. They are disabled rather than deleted so the
+# intent survives, and disabled rather than enabled so the gate never shows a
+# pass it did not earn.
 
 on:
   push:
@@ -19,7 +38,12 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.11", "3.12"]
+        # 3.13 is the version this project is actually developed on, so a green
+        # run on 3.11/3.12 alone said nothing about the interpreter the code is
+        # written against. Spike 0 verified the full dependency closure resolves
+        # there - cp313 wheels exist throughout, no pin to 3.12 needed. See
+        # docs/evidence/2026-09-17-spike0-environment.md.
+        python-version: ["3.11", "3.12", "3.13"]
     defaults:
       run:
         working-directory: agent
@@ -31,6 +55,12 @@ jobs:
           cache: pip
       - name: Install
         run: python -m pip install -e ".[dev]"
+      - name: Typecheck
+        # No type checker ran on either surface until now; docs/reviews flagged
+        # that as an open risk. The config in pyproject.toml is deliberately a
+        # starting point that is green on today's code, with each disabled
+        # check named and justified there rather than blanket-suppressed.
+        run: python -m mypy aiscelapeus
       - name: Test
         # No .env.local on a runner, which is the point: the suite must be
         # hermetic rather than quietly depending on a developer's credentials.
@@ -51,39 +81,70 @@ jobs:
           cache-dependency-path: web/package-lock.json
       - name: Install
         run: npm ci
+      # Typecheck and lint assert something real about the current web code, so
+      # they stay in the blocking gate.
       - name: Typecheck
         run: npm run typecheck
       - name: Lint
         run: npm run lint
+      # `npm run test` no longer carries --passWithNoTests: zero test files is
+      # now exit code 1 rather than a green tick. web/ currently has no test
+      # files at all, so the step is disabled rather than left red on the first
+      # real run - an always-failing gate gets ignored, which is the same
+      # outcome as no gate.
+      #
+      # TODO: delete this `if` the moment the first web test lands. There is no
+      # workflow change needed beyond removing the condition; the script itself
+      # already fails correctly on an empty suite (verified locally).
       - name: Test
+        if: false
         run: npm run test
 
-  contract:
-    name: contract (golden fixtures)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-          cache: pip
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-          cache: npm
-          cache-dependency-path: web/package-lock.json
-      - name: Install agent
-        working-directory: agent
-        run: python -m pip install -e ".[dev]"
-      - name: Install web
-        working-directory: web
-        run: npm ci
-      - name: Python writes and verifies goldens
-        working-directory: agent
-        run: python -m pytest -q -m contract
-      - name: TypeScript parses every golden
-        working-directory: web
-        run: npm run test:contract
+  # DISABLED: this job has no target on either side of the boundary.
+  #
+  # Verified by execution on 17 Sept 2026:
+  #   - `pytest -q -m contract` in agent/ reports "367 deselected" and exits 5
+  #     (NO_TESTS_COLLECTED). There is not one `@pytest.mark.contract` test in
+  #     the repo; the marker is registered in pyproject.toml and never applied.
+  #   - `npm run test:contract` in web/ matched zero files and passed only
+  #     because of --passWithNoTests, which has now been removed.
+  #
+  # So the job asserted nothing about the Python/TypeScript golden-fixture
+  # boundary it is named after. Enabling it as-is would make it red on every
+  # run; leaving it as it was made it a green tick that proved nothing. Both
+  # are worse than an honestly disabled job, so it is commented out until
+  # golden fixtures exist.
+  #
+  # TODO: restore this job with the first `@pytest.mark.contract` test and the
+  # first web/**/*.contract.test.ts. Nothing here needs rewriting - uncomment
+  # it. The scripts it calls now fail correctly on an empty suite.
+  #
+  # contract:
+  #   name: contract (golden fixtures)
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #     - uses: actions/setup-python@v5
+  #       with:
+  #         python-version: "3.12"
+  #         cache: pip
+  #     - uses: actions/setup-node@v4
+  #       with:
+  #         node-version: "20"
+  #         cache: npm
+  #         cache-dependency-path: web/package-lock.json
+  #     - name: Install agent
+  #       working-directory: agent
+  #       run: python -m pip install -e ".[dev]"
+  #     - name: Install web
+  #       working-directory: web
+  #       run: npm ci
+  #     - name: Python writes and verifies goldens
+  #       working-directory: agent
+  #       run: python -m pytest -q -m contract
+  #     - name: TypeScript parses every golden
+  #       working-directory: web
+  #       run: npm run test:contract
 
   meta:
     name: meta (falsifiability)
@@ -99,24 +160,43 @@ jobs:
           cache: pip
       - name: Install
         run: python -m pip install -e ".[dev]"
-      - name: Every test names its falsifier; no vacuous asserts; no untimed calls
+      # The step name used to promise "no untimed calls" as well. tests/meta
+      # does not check that, so the claim is removed rather than left standing
+      # over a check nobody wrote.
+      - name: Every test names its falsifier; no vacuous asserts
         run: python -m pytest -q tests/meta
 
-  harness:
-    name: harness (headless scenarios)
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: agent
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-          cache: pip
-      - name: Install
-        run: python -m pip install -e ".[dev]"
-      - name: Scenarios
-        # FR-013: the headless suite is green in <=120s or it is not green.
-        timeout-minutes: 3
-        run: python -m aiscelapeus.harness --headless scenarios/
+  # DISABLED: this job's target does not exist yet.
+  #
+  # It invokes `python -m aiscelapeus.harness --headless scenarios/`. Neither
+  # aiscelapeus/harness.py nor agent/scenarios/ is in the repo, so the job
+  # fails on its first real run.
+  #
+  # The harness is B5 ("Headless scenario harness") in docs/BUILD-PLAN.md, and
+  # B5 is NOT BUILT. It is deliberately left unstubbed: a fake harness that
+  # exits 0 over an empty scenarios/ directory would turn FR-013's latency
+  # claim into exactly the kind of unearned green tick this workflow's opening
+  # comment condemns, and BUILD-PLAN.md notes B5 is what converts DESIGN.md §8's
+  # BUILT claims "from assertion into evidence". A stub would convert them back.
+  #
+  # TODO: re-enable when B5 lands (docs/BUILD-PLAN.md, "B5 - Headless scenario
+  # harness"), together with the FR-013 <=120s budget the timeout below asserts.
+  #
+  # harness:
+  #   name: harness (headless scenarios)
+  #   runs-on: ubuntu-latest
+  #   defaults:
+  #     run:
+  #       working-directory: agent
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #     - uses: actions/setup-python@v5
+  #       with:
+  #         python-version: "3.12"
+  #         cache: pip
+  #     - name: Install
+  #       run: python -m pip install -e ".[dev]"
+  #     - name: Scenarios
+  #       # FR-013: the headless suite is green in <=120s or it is not green.
+  #       timeout-minutes: 3
+  #       run: python -m aiscelapeus.harness --headless scenarios/

@@ -10,9 +10,16 @@ from livekit.agents import Agent, RunContext, function_tool
 
 from .config import Settings
 from .moss_context import EmergencyContext
+from .ports import FactKind, TierViolation
 from .prompts import PROMPT_VERSION, build_agent_instructions
+from .retrieval import RetrievalRequest
 from .telemetry import span
-from .triage import Criticality, TriageState, hard_escalation_triggered
+from .triage import (
+    Criticality,
+    EscalationStatus,
+    TriageState,
+    hard_escalation_triggered,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -53,7 +60,7 @@ class AiscelapeusAgent(Agent):
         self.state = state
         self.publish = publish
         self._instructions = build_agent_instructions(
-            session_id=context.session_id,
+            session_id=state.session_id,
             escalation_threshold=settings.triage.escalation_threshold,
         )
         super().__init__(instructions=self._instructions)
@@ -82,8 +89,49 @@ class AiscelapeusAgent(Agent):
                 airway, drowning, circulation, burns, trauma, allergy, neuro,
                 metabolic, wounds, environmental, general.
         """
-        categories = [category] if category in PROTOCOL_CATEGORIES else None
-        result = await self.context.lookup_protocol(query, categories=categories)
+        # The request is built here, at the tool boundary, from a
+        # model-supplied string: `RetrievalRequest` validates it (blank query,
+        # blank category, out-of-range alpha) before anything reaches the
+        # store. A rejected request is reported to the model rather than
+        # crashing the tool call - the model can retry with a better query,
+        # whereas an exception out of a function_tool ends the turn.
+        categories = (category,) if category in PROTOCOL_CATEGORIES else ()
+        try:
+            request = RetrievalRequest.for_protocol(
+                query, self.settings.moss, categories=categories
+            )
+        except ValueError as exc:
+            return {"found": False, "error": str(exc)}
+
+        # TierViolation is caught here and turned into the same "no protocol,
+        # escalate" answer as a zero-hit search. It is a RuntimeError, not a
+        # ValueError, so the clause above does not cover it - and it is
+        # reachable in production: `main.entrypoint` deliberately continues past
+        # a failed `connect`, which leaves the corpus non-resident for the whole
+        # incident, so every lookup would raise. An exception out of a
+        # `function_tool` ends the turn, so that would have been a repeated
+        # mid-emergency turn kill on the one tool that matters most.
+        #
+        # This does not weaken the gate. The raise still happens at the call
+        # site, the violation is still what stops the network query, and the
+        # responder is told there is no protocol rather than hearing silence.
+        try:
+            result = await self.context.lookup_protocol(request)
+        except TierViolation:
+            logger.error(
+                "protocol lookup refused on the voice path for session=%s: "
+                "the corpus is not resident",
+                self.state.session_id,
+                exc_info=True,
+            )
+            return {
+                "found": False,
+                "guidance": (
+                    "Protocol retrieval is unavailable. Tell the responder you "
+                    "cannot confirm a protocol right now and escalate to a "
+                    "clinician. Do not give a clinical instruction you cannot cite."
+                ),
+            }
         hits, trace = result.hits, result.trace
 
         await self.publish(
@@ -131,12 +179,31 @@ class AiscelapeusAgent(Agent):
         have taken, or a change in the casualty.
 
         Args:
-            kind: One of "vital", "intervention", "observation", "dispatch".
+            kind: One of "vital", "intervention", "observation", "symptom".
             detail: What happened, in the responder's own words where possible.
                 For example "tourniquet applied to left thigh, bleeding stopped".
         """
-        record = await self.context.record_fact(kind, detail)
-        await self.publish("triage.finding", record)
+        # The model supplies this as free text, so it is validated here at the
+        # boundary rather than deeper in. Everything downstream then holds a
+        # checked domain type instead of a string that might mean anything.
+        try:
+            fact_kind = FactKind(kind)
+        except ValueError:
+            return {
+                "recorded": False,
+                "error": (
+                    f"unknown kind {kind!r}; use one of "
+                    f"{', '.join(k.value for k in FactKind if k is not FactKind.ESCALATION)}"
+                ),
+            }
+
+        record = await self.context.record_fact(fact_kind, detail)
+        # One wire shape, defined by FactRecord.to_payload. The former
+        # `hasattr(record, "to_payload")` bridge is gone: the adapter now
+        # returns the FactRecord the port declares, so there is no second
+        # branch to type, test or keep in sync.
+        payload = record.to_payload()
+        await self.publish("triage.finding", payload)
 
         # Deterministic safety net: certain phrases force Level 5 even if the
         # model has not yet called assess_criticality.
@@ -144,17 +211,24 @@ class AiscelapeusAgent(Agent):
         if marker and self.state.level < Criticality.CRITICAL:
             with span(
                 "triage.hard_escalation",
-                **{"triage.marker": marker, "session.id": self.context.session_id},
+                **{
+                    "triage.marker": marker.marker_id,
+                    "triage.marker_text": marker.matched_text,
+                    "session.id": self.state.session_id,
+                },
             ):
                 self.state.set_level(
                     Criticality.CRITICAL,
-                    f"Hard trigger on reported phrase: {marker!r}",
+                    f"Hard trigger on reported phrase: {marker.matched_text!r}",
                     source="rule",
                 )
                 await self._broadcast_state()
-                await self._do_escalate(f"Reported: {marker}")
+                await self._do_escalate(
+                    f"Reported: {marker.matched_text}",
+                    category=marker.marker_id,
+                )
 
-        return {"recorded": True, "elapsed_s": record.get("elapsed_s")}
+        return {"recorded": True, "elapsed_s": payload.get("elapsed_s")}
 
     @function_tool()
     async def recall_state(
@@ -170,7 +244,24 @@ class AiscelapeusAgent(Agent):
             query: What you need to recall. For example "when was the tourniquet
                 applied" or "has adrenaline been given".
         """
-        result = await self.context.recall(query)
+        try:
+            request = RetrievalRequest.for_session_state(query, self.settings.moss)
+        except ValueError as exc:
+            return {"error": str(exc), "facts": []}
+
+        try:
+            result = await self.context.recall(request)
+        except TierViolation:
+            logger.error(
+                "state recall refused on the voice path for session=%s",
+                self.state.session_id,
+                exc_info=True,
+            )
+            return {
+                "elapsed_s": round(self.context.elapsed_seconds, 1),
+                "error": "state recall is unavailable",
+                "facts": ["Cannot search the incident record right now."],
+            }
         hits, trace = result.hits, result.trace
 
         await self.publish(
@@ -206,21 +297,32 @@ class AiscelapeusAgent(Agent):
                 above bridge a clinician onto the call.
             rationale: One short sentence naming the findings that drove this level.
         """
-        changed = self.state.set_level(level, rationale)
-        if changed:
+        try:
+            change = self.state.set_level(level, rationale)
+        except ValueError as exc:
+            # The model emitted a level outside the scale. Say so rather than
+            # clamping it into range and carrying on as though it were fine.
+            return {"recorded": False, "error": str(exc)}
+
+        # Persist whenever there is something new, not only when the number
+        # moved. A re-assessment at the same level with new reasoning is a
+        # genuine clinical update; branching on "did the level change" dropped
+        # it, leaving the UI showing reasoning the record never received.
+        if change.should_persist:
             await self.context.record_fact(
-                "observation",
-                f"criticality set to {self.state.level} ({self.state.label}): {rationale}",
+                FactKind.OBSERVATION,
+                f"criticality set to {int(self.state.level)} ({self.state.label}): {rationale}",
             )
         await self._broadcast_state()
 
         escalated = False
         if self.state.should_escalate(self.settings.triage.escalation_threshold):
-            escalated = await self._do_escalate(rationale)
+            escalated = await self._do_escalate(rationale, category="criticality_threshold")
 
         return {
-            "level": self.state.level,
+            "level": int(self.state.level),
             "label": self.state.label,
+            "downgrade_refused": change.rejected,
             "escalation_triggered": escalated,
             "already_escalated": self.state.escalated and not escalated,
         }
@@ -238,41 +340,58 @@ class AiscelapeusAgent(Agent):
         Args:
             reason: Why a clinician is needed, in one short sentence.
         """
-        newly = await self._do_escalate(reason)
+        newly = await self._do_escalate(reason, category="model_requested")
         return {
             "clinician_requested": True,
             "newly_requested": newly,
             "guidance": (
-                "Keep giving the responder instructions while the clinician joins. "
+                "Tell the responder you are requesting a clinician - not that one "
+                "is connecting. Keep giving instructions while the request is out. "
                 "Do not go silent."
             ),
         }
 
     # -------------------------------------------------------------- internals
 
-    async def _do_escalate(self, reason: str) -> bool:
-        if not self.state.mark_escalated(reason):
+    async def _do_escalate(self, reason: str, *, category: str) -> bool:
+        """Request a clinician. Returns whether this call was the one that did it.
+
+        `category` is a stable label for why, kept separate from the free-text
+        reason so telemetry can record the cause without carrying clinical
+        detail into spans.
+        """
+        # Keyed on the incident and the cause, not on a flag held by this
+        # object: an agent restarted mid-incident reconstructs state, and a
+        # boolean would come back False and page the clinician a second time.
+        key = f"{self.state.session_id}:{category}"
+        before = self.state.escalation
+        status = self.state.request_escalation(reason, key=key)
+        if before is not EscalationStatus.NOT_NEEDED:
             return False
 
         with span(
             "triage.escalation",
             **{
-                "triage.level": self.state.level,
-                "triage.reason": reason,
-                "session.id": self.context.session_id,
+                "triage.level": int(self.state.level),
+                # The category, not the reason: the free-text reason is
+                # clinical detail and spans are not a PHI-carrying surface.
+                "triage.escalation_category": category,
+                "triage.escalation_status": status.value,
+                "session.id": self.state.session_id,
                 "prompt.version": PROMPT_VERSION,
             },
         ):
             await self.context.record_fact(
-                "escalation",
-                f"clinician bridge requested at criticality {self.state.level}: {reason}",
+                FactKind.ESCALATION,
+                f"clinician bridge requested at criticality {int(self.state.level)}: {reason}",
             )
             await self.publish(
                 "triage.escalation",
                 {
-                    "session_id": self.context.session_id,
-                    "level": self.state.level,
+                    "session_id": self.state.session_id,
+                    "level": int(self.state.level),
                     "label": self.state.label,
+                    "status": status.value,
                     "reason": reason,
                     "requested_at": self.state.clinician_requested_at,
                 },
@@ -280,10 +399,10 @@ class AiscelapeusAgent(Agent):
             await self._broadcast_state()
 
         logger.warning(
-            "ESCALATION session=%s level=%d reason=%s",
-            self.context.session_id,
-            self.state.level,
-            reason,
+            "ESCALATION session=%s level=%d category=%s",
+            self.state.session_id,
+            int(self.state.level),
+            category,
         )
         return True
 
