@@ -148,9 +148,55 @@ Pure domain and seams. 62 tests, hermetic, 0.17 s.
   raises at the call site rather than tripping an alert after the fact
 - `config.py`, `clock.py`, `transcript.py`
 
-### B2 — Transcript edge + escalation at the boundary
+### B2 — Transcript edge + escalation at the boundary — **DONE** (17 Sept, `a1ae682`)
 
-**The highest-severity open item, and cheap.**
+> **Built and proved.** `escalation.py` holds the rule's action once; both the tool path
+> (`agent.py`) and the transcript edge (`main.py`) call it, so the two cannot drift.
+> `normalize_transcript` is wired, the speaker role is mapped instead of hardcoded, and the
+> 26-phrasing corpus now runs through the **applier** rather than only the matcher — the
+> earlier green proved recognition and said nothing about action.
+>
+> Mutation-tested: disabling the edge call fails **33** tests, including
+> `test_a_life_threat_escalates_from_raw_speech_with_no_tool_call`.
+>
+> Also fixed en route: `ctx.create_task` does not exist on `JobContext`, so the **first final
+> transcript of every session raised `AttributeError`** and no transcript ever reached the UI.
+> It hid behind `ModuleNotFoundError: livekit` — the module could not be imported, so the
+> broken line was unreachable by every gate.
+>
+> **⚠ B2 changed WHERE the rule runs, not WHAT it recognises.** See the new blocker below.
+
+### B2.1 — `phrases.py` has holes in the net itself — **OPEN, now the highest-severity item**
+
+`docs/reviews/2026-09-17-phrases-negation-defects.md` records **five defects verified by
+execution** against the real module, found by writing the expected markers for 47 responder
+turns *before* running anything and then executing `find_markers` over them.
+
+Two are CRITICAL, and both are *silence on a reported life threat*:
+
+| # | Defect | Severity |
+|---|---|---|
+| F-001 | The negation window crosses clause boundaries | **CRITICAL** |
+| F-005 | First match only — a suppressed match drops the marker for the whole utterance | **CRITICAL** |
+| F-003 | `unresponsive` misses "can't wake" phrasing | HIGH |
+| F-004 | `drowning` requires the literal word "water" | HIGH |
+| F-002 | A contracted past tense makes a recovery narrative escalate | LOW |
+
+Reproduced independently: **`"I can't wake him"` fires no marker at all** — a bystander
+reporting unresponsiveness in the most natural possible phrasing, and the net stays silent.
+
+This composes badly with B2 in a way worth stating plainly: **B2 widened the net's reach, and
+this review shows the net has holes.** Wiring a leaky net more thoroughly does not make it
+watertight. `phrases.py` is not a heuristic — its own docstring says it exists specifically to
+catch model failure, and that putting a model in front of it reintroduces the failure mode.
+So these cannot be delegated to the LLM.
+
+The error asymmetry decides the priority: a missed escalation can kill a patient, a false one
+is stood down by a clinician. **Fix before any further subsystem work.**
+
+### B2 — original entry, retained for the record
+
+**Was the highest-severity open item, and cheap.**
 
 `transcript.py` exists, is tested by nothing, and is **wired into nothing** — `main.py:129`
 still reads the STT event inline with `getattr`. So `hard_escalation_triggered` has exactly
