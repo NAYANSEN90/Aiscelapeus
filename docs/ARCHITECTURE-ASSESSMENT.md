@@ -1,6 +1,9 @@
 # Architecture — the assessment core
 
-**Status:** design, pending adversarial review. No code written against this yet.
+**Status:** design, **revised 18 Sept after adversarial clinical review**. Still no code
+written against it - which is the point: `docs/reviews/2026-09-17-clinical-safety.md` scored
+the original PROD 1/5 and found two paths that end in a death, so the revision had to land
+before L2 was built. See §5.1, the ASM table, and §11.
 **Date:** 17 Sept 2026
 **Depends on:** `docs/CLINICAL-STANDARDS.md` (the algorithms and thresholds)
 **Supersedes:** the implicit "LLM decides, retrieval supports" model in `docs/DESIGN.md` §7.3
@@ -119,18 +122,46 @@ layer permitted to be non-deterministic.
 "The agent handles uncertainty" must not become "the agent decides". Once an input is
 established, the branch is arithmetic.
 
-### 5.1 The failure direction is fixed
+### 5.1 The failure direction is fixed — **but scoped**
 
-**When an input cannot be established, the system does not guess. It takes the worse branch
-and says so.**
+> **Amended 18 Sept 2026.** The blanket form of this rule was **Blocker 4** in
+> `docs/reviews/2026-09-17-clinical-safety.md`, and the three examples it originally gave
+> were all wrong. Recorded rather than rewritten silently, because "always take the worse
+> branch" reads as obviously safe and is the kind of principle that gets restored by
+> someone who has not read the review.
 
-- Cannot determine breathing rate → treat as RED, tell the responder why.
-- Cannot determine capillary refill → treat as RED.
-- Ambiguous between START and JumpSTART → **JumpSTART**, because it has the rescue-breath
-  branch that can still save a child.
+**The rule holds for category assignment and for summoning a clinician. It does NOT hold
+once a category drives a physical instruction, and this architecture couples them.**
 
-Over-triage is recoverable. Under-triage is not. Every such decision is recorded as an
-assumption, not as a finding (§6).
+| Uncertainty about… | Rule |
+|---|---|
+| **Escalation / criticality category** | Take the worse branch. Over-triage is recoverable; under-triage is not. |
+| **An instruction to a bystander** | Give the intervention that is **safe under both hypotheses**. For airway or breathing uncertainty that is almost always **CPR**. |
+| **Which algorithm applies** | **START**, never JumpSTART. |
+
+Why each original example was wrong:
+
+- ~~*Ambiguous between START and JumpSTART → JumpSTART*~~ — **backwards.** JumpSTART
+  contains the pulse check whose no-pulse leaf is BLACK, so defaulting an ambiguous
+  adolescent there routes them toward the **expectant** leaf, where START would give them
+  RED. The worse branch was worse *in the wrong direction*.
+- ~~*Cannot determine capillary refill → RED*~~ — fires on **every** patient, because a
+  bystander can never determine capillary refill (it needs 5 s timed pressure at heart
+  level, good light and a warm environment). An input that is *always* assumed-worst
+  carries **zero information**: universal over-triage is signal loss, not caution, and it
+  destroys the ability to pick out the genuinely critical patient.
+- ~~*Cannot determine breathing rate → RED*~~ — a counted respiratory rate needs a
+  timepiece and an unaware patient, so it is unavailable for the same reason. Breathing is
+  assessed as the three states in Blocker 3 — `normal` / `abnormal-or-gasping` / `none` —
+  with the latter two both routing to CPR, not as a rate.
+
+**And the ratchet must consume the certainty type.** `triage.py`'s ratchet latches, so a
+patient assumed-worst to 5 at minute one cannot be corrected at minute three *even by a
+clinician on the bridge* — which makes assumption-driven and evidence-driven CRITICAL
+indistinguishable, the exact conflation §6's certainty type exists to prevent. The type is
+defined and the ratchet never reads it. Closing that is part of L2, not a later polish.
+
+Every such decision is still recorded as an assumption, not as a finding (§6).
 
 ### 5.2 What L3 must never do
 
@@ -257,25 +288,40 @@ Battle-testing means these are green, not that the design reads well.
 | ID | Assertion |
 |---|---|
 | **ASM-01** | L2 is a pure function: identical inputs produce an identical branch, 1000 randomised runs, no I/O |
-| **ASM-02** | All 9 worked MCI scenarios (`CLINICAL-STANDARDS.md` §7) produce the published category. **Cases 4, 6, 8 are discriminating** |
+| **ASM-02** | ~~All 9 worked MCI scenarios produce the published category~~ **WITHDRAWN.** The deck's own answers are not a valid oracle here: case 4 (apneic pulseless toddler → BLACK) is the fatal-outcome path Blocker 1 names, and START/JumpSTART categories presuppose the rationing decision a single-casualty bystander never makes. Replaced by ASM-11/12/13 |
 | **ASM-03** | ABCDE ordering cannot be violated: no reachable path advises on a later letter while an earlier one is unresolved |
-| **ASM-04** | Every unestablished input results in the **worse** branch, never the better one. Property-tested across the input space |
+| **ASM-04** | **SCOPED, see §5.1.** An unestablished input takes the worse branch for *category and escalation only*. For an *instruction*, the assertion is that the chosen intervention is safe under **both** hypotheses. Property-tested across the input space, with instructions and categories asserted separately |
 | **ASM-05** | L1 fires on the raw transcript independently of L2 and L3 — proven by driving a transcript with L3 stubbed to return nothing |
 | **ASM-06** | L3 cannot override an L2 branch — structurally, by the type signature, not by convention |
 | **ASM-07** | Certainty survives into span attributes, SOAP, and the catch-up summary. 0 inputs reported as ESTABLISHED that were ASSUMED_WORST |
-| **ASM-08** | Adult/paediatric selection defaults to **JumpSTART** when ambiguous |
+| **ASM-08** | **INVERTED.** Adult/paediatric ambiguity defaults to **START**, never JumpSTART: JumpSTART's pulse-check branch has a BLACK leaf, so the old default routed an ambiguous adolescent toward *expectant* where START gives RED |
 | **ASM-09** | The full L2 suite runs with **no network and no model**, in CI, in under 5 s |
 | **ASM-10** | A deteriorating patient forces re-entry at A; the ratchet is never violated by re-assessment |
+| **ASM-11** | `Criticality` still cannot express BLACK, and no path assigns an expectant category. Apneic + pulseless is **always** Criticality 5 + CPR |
+| **ASM-12** | No reachable path makes a pulse check a branch point. The 5 rescue breaths are unconditional |
+| **ASM-13** | Breathing is a three-state input - `normal` / `abnormal-or-gasping` / `none` - and both non-normal states route to CPR. No reachable path asks a bare yes/no breathing question |
+| **ASM-14** | The ratchet reads the certainty type: a level reached by assumption is correctable by later evidence, a level reached by evidence is not |
+| **ASM-15** | No assessment a bystander cannot perform appears on the responder path (Blocker 5's list: capillary refill, counted RR, auscultation, JVP, pupils, glucose, pulse pressure) |
 
 ---
 
 ## 11. Open questions
 
-1. **BLACK in `Criticality`.** Add a value, add a separate axis, or document why a
-   single-casualty field agent never assigns it?
-2. **Multiple patients.** START/JumpSTART are *mass-casualty* tools; the current system
-   models one incident with one `TriageState`. Is multi-casualty in scope, or do we adopt the
-   thresholds while explicitly not supporting MCI?
+1. ~~**BLACK in `Criticality`.**~~ **ANSWERED, 17 Sept, by the clinical review — and the
+   question was posed backwards.** `Criticality`'s inability to express BLACK is the
+   **correct property of the type**, not a gap to close. BLACK means *"I am walking past
+   this person to reach someone I can save"*, and that calculus does not exist for a
+   bystander with one patient and nowhere else to go. `triage.py` stays exactly as it is.
+   In a single-casualty incident an apneic pulseless casualty is **cardiac arrest**:
+   Criticality 5 and CPR, always. Pinned by ASM-11.
+2. ~~**Multiple patients.**~~ **ANSWERED by the same review, and it decides more than it
+   looks.** MCI is **out of scope**: one incident, one `TriageState`, no rationing. The
+   thresholds are adopted as *recognition* cues; the **categories are not**, because a
+   category like BLACK encodes a triage decision rather than a clinical finding. This is
+   why ASM-02 is withdrawn rather than reworded — the 9 worked MCI scenarios cannot be an
+   oracle for a system that does not triage between patients. BLACK re-enters only behind
+   an explicit multi-casualty mode with a trained-responder gate, which is not this
+   product.
 3. **Does L3 propose inputs, or extract them?** Extraction is safer and testable;
    proposal ("sounds like maybe RR 30-ish") is more useful and less verifiable. Leaning
    extraction-only, with `INFERRED` as the ceiling.
