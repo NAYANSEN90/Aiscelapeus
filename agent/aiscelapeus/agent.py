@@ -58,15 +58,40 @@ class AiscelapeusAgent(Agent):
         self.context = context
         self.state = state
         self.publish = publish
-        self._instructions = build_agent_instructions(
+        # Two changes here, and the measured truth is that EITHER ONE alone
+        # fixes the typecheck - neither is individually necessary. `Agent.__init__`
+        # does `self._instructions = instructions` from a `str | Instructions`
+        # parameter, so reusing that inherited name means the base declaration
+        # wins over the `-> str` return of `build_agent_instructions`, and
+        # `system_prompt` - which promises `-> str` - cannot narrow it.
+        #
+        # Isolated by execution, one variable at a time:
+        #
+        #     name                annotation   mypy
+        #     _rendered_prompt    : str        clean
+        #     _instructions       : str        clean
+        #     _rendered_prompt    inferred     clean
+        #     _instructions       inferred     ERROR   <- the original
+        #
+        # So the error needs the conjunction: the inherited name AND no
+        # annotation. Both are kept deliberately rather than picking the minimal
+        # one - the explicit `: str` states the type this attribute actually
+        # holds, and the distinct name stops a subclass borrowing a base class's
+        # private field to hold a narrower type, which is how this arose.
+        #
+        # Recorded because a single-variable mutation gives the wrong answer
+        # here, twice over: reverting only the name looks like "the annotation
+        # fixed it" and reverting only the annotation looks like "the rename
+        # fixed it". Both readings are wrong.
+        self._rendered_prompt: str = build_agent_instructions(
             session_id=state.session_id,
             escalation_threshold=settings.triage.escalation_threshold,
         )
-        super().__init__(instructions=self._instructions)
+        super().__init__(instructions=self._rendered_prompt)
 
     @property
     def system_prompt(self) -> str:
-        return self._instructions
+        return self._rendered_prompt
 
     # ------------------------------------------------------------------- tools
 

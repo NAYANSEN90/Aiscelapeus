@@ -336,3 +336,26 @@ async def test_no_matching_protocol_tells_the_model_to_escalate(
 
     assert answer["found"] is False
     assert "escalate" in answer["guidance"].lower()
+
+
+def test_the_system_prompt_is_a_string_the_session_id_reaches(
+    agent: AiscelapeusAgent,
+) -> None:
+    # falsifier: the rendered prompt is stored under the base class's
+    # `_instructions`, whose declared type is `str | Instructions` because
+    # `Agent.__init__` assigns it from a parameter of that union. `system_prompt`
+    # promises `-> str`, so borrowing that field made the promise unprovable and
+    # mypy reported it - the last error in the package. Silencing it with a cast
+    # or a `type: ignore` would have left the promise unchecked while looking
+    # fixed; a distinct attribute makes the rendered prompt typed as what it is.
+    #
+    # The session-id assertion is what makes this more than a type test: the
+    # prompt is built from `state.session_id`, and a prompt that silently lost
+    # the incident binding would still be a `str`.
+    prompt = agent.system_prompt
+
+    assert isinstance(prompt, str), f"system_prompt returned {type(prompt).__name__}"
+    assert prompt.strip(), "an empty system prompt would leave the model unbriefed"
+    assert agent.state.session_id in prompt, (
+        "the rendered prompt must carry the incident it belongs to"
+    )
