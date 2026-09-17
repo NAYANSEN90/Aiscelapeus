@@ -8,6 +8,12 @@ have the variable set.
 
 `Settings.load` now takes the environment explicitly, and these fixtures make
 the ambient one empty so nothing can read real credentials by accident.
+
+This module also enforces the `infra` marker. pyproject.toml declares it as
+"requires real external infrastructure; not in the blocking gate", but nothing
+acted on that declaration - no `addopts`, no hook - so an `infra` test ran in
+the default suite and reached the network. `_skip_infra_by_default` below is
+what makes the registered description true.
 """
 
 from __future__ import annotations
@@ -68,6 +74,49 @@ FAKE_ENV: dict[str, str] = {
     "GEMINI_API_KEY": "test-gemini",
     "APP_ENV": "test",
 }
+
+
+def pytest_collection_modifyitems(
+    config: pytest.Config, items: list[pytest.Item]
+) -> None:
+    """Deselect `infra` tests unless they were asked for explicitly.
+
+    The suite must stay hermetic: no credentials, no network. An `infra` test
+    talks to real Moss, so leaving it in the default run makes `pytest -q` fail
+    on a machine with no credentials and, worse, *pass by hitting the network*
+    on a machine that has them - which is how a latency or accuracy number gets
+    published from a run nobody realised was live.
+
+    Asked for explicitly means either `-m infra` (or any `-m` expression
+    naming it) or naming the test's node id on the command line. Anything else
+    - a bare `pytest`, a directory, a whole file - skips it.
+    """
+    requested_marker = "infra" in (config.getoption("-m") or "")
+    for item in items:
+        if "infra" not in item.keywords:
+            continue
+        # A node id typed on the command line is an explicit request for that
+        # test; a directory or file argument is not. `"::" in argument` gates
+        # BOTH halves, and the parentheses are load-bearing: written without
+        # them, `A or B and C` parses as `A or (B and C)`, so a bare
+        # `-k test_real_moss_...` - the test's short name with no `::` - matched
+        # the first disjunct and silently re-enabled a live-Moss run. That is
+        # the precise failure this hook exists to prevent, reached by pasting a
+        # test name out of CI output. Found by independent review.
+        named = any(
+            "::" in argument
+            and (
+                argument.split("::")[-1] == item.name
+                or item.nodeid.startswith(argument)
+            )
+            for argument in config.invocation_params.args
+        )
+        if not (requested_marker or named):
+            item.add_marker(
+                pytest.mark.skip(
+                    reason="needs real infrastructure; run with `-m infra`"
+                )
+            )
 
 
 @pytest.fixture(autouse=True)

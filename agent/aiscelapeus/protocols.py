@@ -21,6 +21,19 @@ PROTOCOLS: list[dict[str, Any]] = [
         "severity": 5,
         "title": "Adult CPR - unresponsive, not breathing normally",
         "text": (
+            "Unresponsive on the ground and not breathing normally. The casualty went down "
+            "without warning on dry land and does not react at all to shouting or shaking. "
+            # "The heart has stopped beating" was here and was deleted. It is an
+            # assertion about what is happening inside the chest, which the
+            # caller cannot observe and which the scene can appear to CONTRADICT
+            # - a caller who felt a flutter or saw the chest move now has grounds
+            # to decide the protocol does not apply, and the instinct on hearing
+            # it is to go and verify, which is the ~coin-flip lay pulse check
+            # ILCOR removed. Recognition text states what is OBSERVABLE only.
+            # Nothing is lost: "begin chest compressions immediately" already
+            # follows, with no precondition.
+            "Breathing is absent, or only occasional gasping or snoring gurgles, which is "
+            "not normal breathing. Begin chest compressions immediately. "
             "Adult CPR. Confirm unresponsive and not breathing normally. Call for help and "
             "start compressions now. Heel of one hand on the centre of the chest, other hand "
             "on top, arms straight. Push hard, at least 5 centimetres deep. Push fast, 100 to "
@@ -61,6 +74,12 @@ PROTOCOLS: list[dict[str, Any]] = [
         "severity": 3,
         "title": "Wound packing and direct pressure",
         "text": (
+            "Heavy bleeding that will not stop, anywhere a tourniquet cannot be used - the "
+            "neck, the shoulder hollow, the armpit, where the thigh joins the trunk, or any "
+            "wound when no tourniquet is available. Blood is welling up and reappearing as "
+            "fast as it is mopped away, soaking through dressings and clothing, pooling "
+            "underneath. Squeezing the surface has already failed. This is serious blood "
+            "loss, not a graze needing a plaster. "
             "Direct pressure and packing. For bleeding on the neck, armpit, or groin where a "
             "tourniquet cannot go, pack the wound. Push gauze or clean cloth deep into the "
             "wound, right down onto the bleeding vessel, then hold firm pressure with both "
@@ -74,6 +93,33 @@ PROTOCOLS: list[dict[str, Any]] = [
         "severity": 4,
         "title": "Choking - conscious adult",
         "text": (
+            # "They are alert and aware of you throughout" was here and was
+            # deleted: it is clinically false, it contradicts this document's own
+            # closing line ("if they go unconscious ... start CPR"), and as LLM
+            # grounding it turned a presentation cue into an ELIGIBILITY GATE.
+            # This is the only choking document in the corpus, so a caller
+            # describing a casualty who has already gone limp matched no cue here
+            # and the agent would coach back blows instead of compressions.
+            # Consciousness is now the state ON ARRIVAL with an explicit
+            # transition, which keeps the ("conscious", "standing") discriminator
+            # the retrieval gate needs without claiming it persists.
+            # Wording is constrained from BOTH sides here, and the first attempt
+            # failed the retrieval side. Clinically the transition out of this
+            # protocol must be stated (see below). But phrasing it as "...becomes
+            # CPR" put CPR vocabulary in this document, and measurement showed it
+            # then won the *cardiac arrest* query at rank 1 while real choking
+            # fell behind anaphylaxis - critical top-1 dropped 8/8 -> 6/8. A
+            # second magnet document, exactly the drowning-rescue failure mode.
+            #
+            # So the transition is carried by the pre-existing closing line of
+            # the instruction block ("If they go unconscious, lower them down and
+            # start CPR"), which is where a responder needs it, and the
+            # recognition text stays on what distinguishes choking: a conscious
+            # person with a mechanical blockage they are trying to clear.
+            "Conscious right now, standing or sitting, gripping their own neck, unable to "
+            "speak or cough properly, usually while eating. A solid obstruction in the "
+            "throat, to be expelled by force. This protocol applies only while they are "
+            "still responsive. "
             "Choking adult, still conscious. If they can cough, encourage coughing. If the "
             "cough is silent or they cannot breathe, give 5 sharp back blows between the "
             "shoulder blades with the heel of your hand, leaning them forward. If that fails, "
@@ -101,6 +147,11 @@ PROTOCOLS: list[dict[str, Any]] = [
         "severity": 5,
         "title": "Drowning - out of water, unresponsive",
         "text": (
+            "Submersion incident. The casualty has just been dragged out of water - a "
+            "swimming pool, bath, pond, river, canal or the sea - after going under and "
+            "staying under. They are soaking wet, limp and lifeless. This arrest was caused "
+            "by lack of oxygen while submerged, which is why the sequence below differs from "
+            "a dry-land cardiac collapse: breaths come first. "
             "Drowning. Once out of the water, check breathing. Drowning is a hypoxic arrest, "
             "so start with 5 rescue breaths before compressions, then 30 compressions to 2 "
             "breaths. Expect vomiting; turn the head to the side and clear the mouth, then "
@@ -114,6 +165,12 @@ PROTOCOLS: list[dict[str, Any]] = [
         "severity": 4,
         "title": "Hypovolaemic shock",
         "text": (
+            "The circulation is collapsing from lost volume after a major injury, heavy "
+            "blood loss, extensive burns, or relentless vomiting. The casualty is still "
+            "rousable, but colour has drained from the face to grey or ashen, the surface "
+            "feels chilled and slick with sweat, the breathing has gone fast and shallow, "
+            "and they are thirsty, agitated and incoherent. The cause is lost volume, not "
+            "exposure, so blankets alone will not correct it. "
             "Shock. Pale, cold, clammy skin, fast weak pulse, confusion or drowsiness. Lay "
             "them flat and raise the legs about 30 centimetres unless a leg or spine is "
             "injured. Stop any ongoing bleeding first. Keep them warm with a blanket or coat, "
@@ -168,6 +225,13 @@ PROTOCOLS: list[dict[str, Any]] = [
         "severity": 5,
         "title": "Anaphylaxis",
         "text": (
+            "A severe allergic reaction is escalating. Within minutes of an allergen - a "
+            "trigger food, an insect sting, or a new medicine - the tongue and airway lining "
+            "swell and tighten from inside. This is an allergic reaction spreading through "
+            "the whole body rather than a blockage: the voice turns croaky, each breath squeaks "
+            "or wheezes, an itchy blotchy hives rash spreads over the skin, and there may be "
+            "retching or sudden collapse. Ask for an adrenaline auto-injector and check "
+            "pockets and bags; if there is none anywhere, this still needs an ambulance now. "
             "Anaphylaxis. Swelling of the lips or tongue, hoarse voice, wheeze, widespread "
             "rash, or sudden collapse after an exposure. Use their adrenaline auto-injector "
             "immediately: firmly into the outer thigh, hold for the time printed on the "
@@ -182,6 +246,11 @@ PROTOCOLS: list[dict[str, Any]] = [
         "severity": 3,
         "title": "Active seizure",
         "text": (
+            "A convulsion is under way. The casualty is on the ground, whole body rigid then "
+            "jerking in rhythm, unaware of you, jaw clenched, perhaps froth at the lips, and "
+            "may pass urine. The movement is the illness itself, not a struggle to escape "
+            "anything. It typically subsides unaided within a couple of minutes, "
+            "and no amount of gripping or pinning shortens it; restraining causes injury. "
             "Seizure. Do not restrain them and do not put anything in their mouth. Clear hard "
             "objects away and cushion the head. Note the start time. Once the jerking stops, "
             "roll them into the recovery position and check breathing. Call for emergency "
@@ -235,6 +304,11 @@ PROTOCOLS: list[dict[str, Any]] = [
         "severity": 4,
         "title": "Heat stroke",
         "text": (
+            "Overheated from within after prolonged heat exposure or heavy exertion. The "
+            "skin is intact and unmarked - no flame, no scalding liquid, no blistering, no "
+            "wound to dress. What is dangerous is the core temperature, and the brain is "
+            "affected too: muddled, slurring, incoherent, staggering or already down. Cool "
+            "the whole casualty, not a body part. "
             "Heat stroke. Hot skin, confusion or collapse after heat or exertion. This is an "
             "emergency. Move them into shade, strip outer clothing, and cool aggressively: "
             "cold water immersion if possible, otherwise soak them and fan hard, with cold "
@@ -262,6 +336,10 @@ PROTOCOLS: list[dict[str, Any]] = [
         "severity": 4,
         "title": "Chest pain, suspected heart attack",
         "text": (
+            "The casualty is awake, talking, and complaining of pain. They are conscious and "
+            "breathing, seated or standing, frightened but responsive - a heart attack in "
+            "progress rather than an arrest, so the priority is keeping them still and "
+            "calm while help comes. "
             "Suspected heart attack. Crushing central chest pain, possibly spreading to the "
             "arm, jaw, or back, with sweating, nausea, or breathlessness. Sit them down, "
             "leaning back with knees bent, and keep them calm and still. Call emergency "
