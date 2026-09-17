@@ -311,7 +311,7 @@ Fifteen phrase markers force Level 5 and an immediate bridge regardless of LLM j
 
 ### ADR-005 — The output schema gate is the enforcement point for prompt engineering **[NEW]**
 
-A CRISPE prompt is a *request*. A Pydantic model validated before audio reaches TTS is a *constraint*. Every clinical instruction must carry the protocol document IDs it derives from, and any dosage or numeric must appear verbatim in the retrieved text or the turn is rejected.
+A CRISPE prompt is a *request*. A Pydantic model validated before audio reaches TTS is a *constraint*. Every clinical instruction must carry the protocol document IDs it derives from, and any dosage or numeric must match a value stated in the retrieved text or the turn is rejected. (Value equality, not verbatim text - see the amendment at §7.4 item 2: the corpus writes digits while the prompt requires spoken words, so a verbatim check would reject correct guidance.)
 
 ### ADR-006 — Offline corpus ships as a signed, encrypted bundle **[NEW]**
 
@@ -461,9 +461,37 @@ ClinicalTurn(BaseModel):
 Validation before a single byte reaches TTS:
 
 1. `clinical_instruction` with an empty `protocol_ids` → reject.
-2. Every `Numeric` must appear verbatim in the text of a cited protocol document → otherwise reject.
+2. Every `Numeric` must be **numerically equal** to a value stated in the text of a cited
+   protocol document → otherwise reject.
+
+   > **Amended 18 Sept 2026 (`71dd047`). "Verbatim" was unimplementable against this
+   > repo and is corrected here rather than left contradicting the code.**
+   >
+   > `protocols.py` writes **digits** — *"at least 5 centimetres"*, *"100 to 120
+   > compressions per minute"*. `prompts.py:106` orders the model to **speak numbers as
+   > words** — *"five centimetres"* — which is correct, because a TTS engine reading
+   > "5cm" aloud is unreliable.
+   >
+   > Two individually-correct requirements that are **jointly unsatisfiable**: a verbatim
+   > substring check rejects every correctly-grounded compression instruction, mid-arrest.
+   >
+   > Both sides therefore normalise to numeric **value sets** — word composition
+   > (*"one hundred twenty"* → 120, not {1, 100, 20}), spelled decimals, thousands
+   > separators, ordinals, order-preserving ratios, and digit-by-digit runs
+   > (*"nine nine nine"* → 999, which the arithmetic reading summed to 27 and so
+   > rejected the only phrasing production emits).
+   >
+   > **The cost, stated rather than hidden:** value-space matching cannot distinguish
+   > *"2 inches"* from *"2 minutes"*. Pinned by a test that asserts the limitation.
 3. `speech` longer than the ceiling → reject.
 4. Diagnosis-shaped language (pattern list) in `reassurance` → reject.
+
+**What the gate does not do**, because a gate believed to do more than it does is worse
+than none. It validates that an instruction **cites** a protocol; it cannot validate that
+the cited protocol is the **right** one (see §8.5 — an instruction sourced from the wrong
+document is correctly formed, correctly cited, and wrong; RET-C02 is what makes the cited
+document the right one). It does not check paraphrase or negation safety, units,
+completeness, or the staleness of the hit list it is given.
 
 On rejection: speak a pre-rendered safe line — *"Stay with me. I need a clinician for this one, bringing them in now."* — and escalate. **Zero additional LLM latency on the failure path**, which is what makes this affordable inside the 500 ms budget (see CONFLICT-1).
 
