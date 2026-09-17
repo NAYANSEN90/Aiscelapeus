@@ -13,11 +13,22 @@ the ambient one empty so nothing can read real credentials by accident.
 from __future__ import annotations
 
 import os
+import warnings
 from collections.abc import Iterator
 
 import pytest
 
 from aiscelapeus.clock import ManualClock
+from aiscelapeus.config import repo_root
+
+
+class _HermeticEnvironmentWarning(UserWarning):
+    """A real dotenv is present. Not an error - see `_no_real_dotenv`.
+
+    Its own class so pyproject.toml can exempt exactly this warning from
+    `filterwarnings = ["error"]` without widening that rule for anything else.
+    """
+
 
 # Every variable the agent reads. Cleared wholesale rather than selectively, so
 # a newly-added setting cannot silently start leaking in from the developer's
@@ -25,27 +36,36 @@ from aiscelapeus.clock import ManualClock
 MANAGED_PREFIXES = (
     "MOSS_",
     "LIVEKIT_",
-    "OPENAI_",
     "DEEPGRAM_",
-    "ELEVENLABS_",
+    "GEMINI_",
+    "LLM_",
     "OTEL_",
+    # Both vendors are dropped, but the prefixes stay listed. A developer who
+    # worked on this repo before the migration still has these exported, and
+    # clearing them is what stops a stale credential being present while a test
+    # asserts the key is no longer required.
+    "OPENAI_",
+    "ELEVENLABS_",
 )
+# `LLM_` above already covers LLM_PROVIDER, LLM_MODEL, LLM_FALLBACK_MODEL and
+# LLM_TEMPERATURE; listing them individually as well would be two sources of
+# truth for one rule. What remains here is every managed variable with no
+# shared prefix.
 MANAGED_KEYS = (
     "APP_ENV",
-    "LLM_MODEL",
-    "LLM_TEMPERATURE",
     "ESCALATION_THRESHOLD",
     "DISPATCH_TIMEOUT_S",
+    "DISTRESS_THRESHOLD",
 )
 
-# A complete, obviously-fake credential set. Tests that care about a specific
-# value override it; tests that just need settings to construct use this.
+# A complete, obviously-fake credential set: one key per surviving vendor,
+# matching config.REQUIRED_KEYS. Tests that care about a specific value override
+# it; tests that just need settings to construct use this.
 FAKE_ENV: dict[str, str] = {
     "MOSS_PROJECT_ID": "test-project",
     "MOSS_PROJECT_KEY": "test-key",
     "DEEPGRAM_API_KEY": "test-deepgram",
-    "ELEVENLABS_API_KEY": "test-elevenlabs",
-    "OPENAI_API_KEY": "test-openai",
+    "GEMINI_API_KEY": "test-gemini",
     "APP_ENV": "test",
 }
 
@@ -74,10 +94,37 @@ def clock() -> ManualClock:
 
 @pytest.fixture(scope="session", autouse=True)
 def _no_real_dotenv() -> Iterator[None]:
-    """Fail loudly if a real .env.local is in play during the run.
+    """Warn loudly when a real dotenv file is in play during the run.
 
-    A present .env.local does not break these tests - `Settings.load` is given
-    its environment explicitly - but its presence means someone could write a
-    test that reads it without noticing. Surfacing it is cheap.
+    A present dotenv does not break these tests - `Settings.load` is given its
+    environment explicitly - but its presence means someone can write a test
+    that reads it without noticing, and that test then passes on this machine
+    for a reason that does not exist on a runner.
+
+    This fixture used to promise exactly that and contain only `yield`. It was
+    `autouse=True` and session-scoped, so it read as an active guard in every
+    run while surfacing nothing - a mechanism whose only implementation was its
+    own docstring, which is the defect this repo keeps finding. It bit a real
+    test: a credential case passed for the wrong reason because a dotenv exists
+    at the repo root, and the guard meant to flag precisely that stayed silent.
+
+    Both names are checked, in `read_env`'s own search order. The original only
+    named `.env.local`, while `read_env` falls through to `.env` - so the file
+    actually present here was the one not mentioned.
+
+    A warning rather than a failure, deliberately: a developer keeping a dotenv
+    at the repo root is doing nothing wrong, and failing the suite for it would
+    make the hermetic check the reason to distrust the suite. CI has no dotenv,
+    so this prints nothing there.
     """
+    present = [name for name in (".env.local", ".env") if (repo_root() / name).exists()]
+    if present:
+        warnings.warn(
+            f"{', '.join(present)} present at {repo_root()}; the suite is hermetic "
+            "(Settings.load takes its environment explicitly) but a new test that "
+            "reads the ambient environment would pass here and fail on a runner. "
+            "Assert against an explicit mapping, never the real file.",
+            _HermeticEnvironmentWarning,
+            stacklevel=2,
+        )
     yield

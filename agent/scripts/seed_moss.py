@@ -75,11 +75,11 @@ async def main() -> None:
     # never been created. A script outside the test suite's import graph, with no
     # type checker running, had nothing to catch it.
     #
-    # Only the Moss settings are resolved, deliberately. `Settings.load()` also
-    # requires OPENAI_API_KEY and ELEVENLABS_API_KEY, and both vendors were
-    # dropped in docs/WORKLOG.md Session 2 (Gemini for the LLM, Deepgram Aura-2
-    # for TTS) -- a migration that reached .env but never reached config.py.
-    # Building a search index should not require TTS credentials in any case.
+    # Only the Moss settings are resolved, and that stays deliberate now that the
+    # provider migration has landed: `Settings.load()` requires the STT and LLM
+    # credentials, and building a search index has no business demanding either.
+    # Resolving the narrowest config the task needs keeps this runnable with only
+    # the Moss keys present.
     config = MossConfig.from_env(_Env(read_env()))
 
     if not args.check:

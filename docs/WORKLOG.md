@@ -10,6 +10,114 @@ never rewritten — a correction is a new entry that supersedes an old one.
 
 ---
 
+## 2026-09-17 · Session 6 — B2 groundwork; livekit installed, three defects unmasked
+
+**Goal (NAYANSEN):** proceed with B2 + the provider migration, parallelising sub-items where
+they are genuinely independent.
+
+### Decided — the shared subsystem, again found by looking for the collision
+
+`transcript.py` turned out to be **already pure and complete**: `normalize_transcript` is a
+total function over the opaque STT event with an injected `Clock`. So B2 is not "write the
+edge" but "wire it and run the classifier through it".
+
+The real duplication risk was elsewhere. `agent.py` held the escalation *action* inline
+(marker → ratchet to CRITICAL → span → broadcast → dispatch). Wiring the edge naively means
+copy-pasting that, producing **two implementations of the one rule that must outrank the
+model**. Extracted first as **T0 `escalation.py`** — one shared applier returning a frozen
+result object, so both paths call the same code. Parallel tracks: T0 (`escalation.py`,
+`agent.py`) and **P1** (`config.py`, `.env.example`, `conftest.py`), disjoint files, both
+hermetic. The `main.py` wiring consumes both and goes last, alone.
+
+### Proved — Spike 0b, and what installing the vendor revealed
+
+`livekit-agents==1.8.1` plus `livekit-plugins-{deepgram,silero,google}` install and import on
+**Python 3.13.13**. Plugins chosen to match the Session 2 provider decision; the `elevenlabs`
+and `openai` plugins were deliberately **not** installed, since those are the dropped vendors
+`main.py` still imports.
+
+**Three pre-existing defects were unmasked by the install alone, with no source change:**
+
+| Error | Severity |
+|---|---|
+| `main.py:155` — `"JobContext" has no attribute "create_task"` | **runtime break** |
+| `main.py:110` — `session` needs a type annotation | typing |
+| `agent.py:69` — `str \| Instructions` returned where `str` declared | typing |
+
+**`main.py:155` is a real break, not a typing nit.** `JobContext` has no task-spawning method
+at all (`[m for m in dir(JobContext) if 'task' in m.lower()]` → `[]`), and the call sits in
+the `user_input_transcribed` handler — so **the first final transcript of every session raises
+`AttributeError`** and no transcript ever reaches the UI. Same defect class as
+`scripts/seed_moss.py` earlier today: an API moved, the module sat outside the test import
+graph, no type checker ran. It hid behind `ModuleNotFoundError: livekit` — the file could not
+be imported, so the broken line was unreachable by every check. It is in the exact handler B2
+replaces, so the fix lands there.
+
+Evidence: `docs/evidence/2026-09-17-spike0b-livekit-installed.md`.
+
+### Corrected — my own baseline was stale, caught by a subagent
+
+I briefed both subsystems with "690 passed, 1 skipped; mypy clean, 17 files". T0 disputed it
+and was right: measured at clean HEAD `62b00b3`, the baseline is **703 passed, 0 skipped**
+with **3 mypy errors**. My figures predated the livekit install in the same session.
+
+Consequence worth recording: **"mypy clean" was an artifact of a missing dependency.**
+`livekit-agents` is a *base* dependency in `pyproject.toml`, so CI's `pip install -e ".[dev]"`
+always installs it — CI would have failed on first run. Keep livekit installed locally so the
+local signal matches CI's.
+
+### Built — T0
+
+`escalation.py` + 57 tests. Imports only `phrases`, `telemetry`, `transcript`, `triage`; no
+vendor, verified by a `sys.meta_path` blocker that raises on any livekit import, now pinned by
+a structural AST test.
+
+Two judgement calls, both argued rather than assumed:
+
+- **Dedup: no new mechanism.** `_do_escalate` already keys on `f"{session_id}:{marker_id}"`,
+  and `marker_id` is *stable across paraphrase* where `matched_text` is not — verified by
+  execution. Both paths therefore compute the same key. A second text-equality dedup would be
+  the same DRY defect one level down, and strictly worse: it would pass a weaker test and
+  still double-page in production. Also confirmed there is no `await` between the level check
+  and `set_level`, so the check-then-act is atomic under cooperative scheduling.
+- **Speaker gating: bystanders and unknown speakers CAN escalate.** The responder holds the
+  phone, so the bystander is often the one actually looking at the patient; gating on speaker
+  index 0 would discard the most informative utterance on the call for a reason with no
+  clinical content. The failure modes are not symmetric — a false negative is a missed arrest
+  (survival falls ~10 %/minute, unrecoverable), a false positive is a clinician who stands it
+  down. `UNKNOWN_SPEAKER` is included because a missing diarization index is an STT gap, not
+  evidence about who spoke, and excluding it would disable the net precisely on a noisy scene.
+  Encoded as a frozenset checked in the type, not a comment.
+
+**The corpus now runs through the applier, not just the matcher.** That was the real gap: the
+26 phrasings only ever reached `hard_escalation_triggered`, which mutates nothing — green
+there proved recognition and said nothing about action.
+
+**Tests verified to have teeth by mutation, independently re-run:** breaking the ratchet
+(`CRITICAL` → `SEVERE`) fails **32** tests; removing the already-critical guard fails exactly
+2, including `test_the_same_emergency_from_both_paths_pages_once`.
+
+T0's own reviewer also caught it overstating a comment: `ESCALATING_SPEAKERS` currently admits
+every role `transcript.py` defines, so the gate is **forward-looking, not active today**.
+Amended to say so.
+
+### Open
+
+- **P1 in flight** (config provider migration). A test it wrote,
+  `test_no_env_var_is_read_that_the_example_file_does_not_document`, currently fails on its own
+  comment: it scans the whole file text, and the comment explaining that `DEEPGRAM_TTS_VOICE`
+  was *removed* trips the search for undocumented names. Needs an AST scan of actual
+  `env.opt`/`env.req` literals — the same regex-vs-AST lesson as `test_ports.py`.
+- **T2+P2 wiring not started.** Must also fix `ctx.create_task`, drop the `elevenlabs`/`openai`
+  plugin imports, and verify the `livekit-plugins-google` constructor it calls.
+- Spike 2 (real room + data channel) still un-run. Deepgram TTS verified as an API in Session
+  2, never through the plugin wrapper.
+- `web/lib/types.ts:39-40` still types `seq`/`elapsed_s` as `string` where the wire now sends
+  `int`/`float`; `telemetry.py`'s `arg-type` override still present. Both dispatched to
+  separate sessions, neither landed yet.
+
+---
+
 ## 2026-09-17 · Session 5 — parallel subsystems; BUILD-PLAN §8.2 item 1 refuted
 
 **Goal (NAYANSEN):** find which gaps can be built in parallel, factor out any shared

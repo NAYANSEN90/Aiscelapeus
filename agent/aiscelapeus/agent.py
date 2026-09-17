@@ -9,16 +9,15 @@ from typing import Any, Awaitable, Callable
 from livekit.agents import Agent, RunContext, function_tool
 
 from .config import Settings
+from .escalation import SOURCE_TOOL, apply_hard_escalation
 from .moss_context import EmergencyContext
 from .ports import FactKind, TierViolation
 from .prompts import PROMPT_VERSION, build_agent_instructions
 from .retrieval import RetrievalRequest
 from .telemetry import span
 from .triage import (
-    Criticality,
     EscalationStatus,
     TriageState,
-    hard_escalation_triggered,
 )
 
 logger = logging.getLogger(__name__)
@@ -207,26 +206,20 @@ class AiscelapeusAgent(Agent):
 
         # Deterministic safety net: certain phrases force Level 5 even if the
         # model has not yet called assess_criticality.
-        marker = hard_escalation_triggered(detail)
-        if marker and self.state.level < Criticality.CRITICAL:
-            with span(
-                "triage.hard_escalation",
-                **{
-                    "triage.marker": marker.marker_id,
-                    "triage.marker_text": marker.matched_text,
-                    "session.id": self.state.session_id,
-                },
-            ):
-                self.state.set_level(
-                    Criticality.CRITICAL,
-                    f"Hard trigger on reported phrase: {marker.matched_text!r}",
-                    source="rule",
-                )
-                await self._broadcast_state()
-                await self._do_escalate(
-                    f"Reported: {marker.matched_text}",
-                    category=marker.marker_id,
-                )
+        #
+        # The action lives in `escalation.apply_hard_escalation`, not here. This
+        # is one of two call sites - the transcript edge runs the same rule on
+        # every final transcript, so that a responder saying "he's not breathing"
+        # escalates whether or not the model chooses to call this tool. Inlined,
+        # the rule would have two implementations, and it is the system's central
+        # safety claim.
+        await apply_hard_escalation(
+            detail,
+            state=self.state,
+            on_state_change=self._broadcast_state,
+            on_escalate=self._escalate_for_marker,
+            source=SOURCE_TOOL,
+        )
 
         return {"recorded": True, "elapsed_s": payload.get("elapsed_s")}
 
@@ -352,6 +345,22 @@ class AiscelapeusAgent(Agent):
         }
 
     # -------------------------------------------------------------- internals
+
+    async def _escalate_for_marker(self, reason: str, category: str) -> None:
+        """Adapt `_do_escalate` to the callback shape the applier injects.
+
+        `_do_escalate` takes `category` keyword-only and returns whether it
+        dispatched; the applier's port is a two-positional-argument coroutine
+        returning None. Bridged here rather than by loosening either side:
+        `category` stays keyword-only at the call sites that spell it out, and
+        the applier stays free of this class's method signature.
+
+        The return value is dropped deliberately. Whether a page went out is
+        already reported by the `HardEscalation` the applier returns, derived
+        from the level it observed before acting - so consuming it here would be
+        a second answer to that question.
+        """
+        await self._do_escalate(reason, category=category)
 
     async def _do_escalate(self, reason: str, *, category: str) -> bool:
         """Request a clinician. Returns whether this call was the one that did it.

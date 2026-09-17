@@ -8,14 +8,29 @@ version = "0.1.0"
 description = "Voice-first emergency triage agent (LiveKit + Moss)"
 requires-python = ">=3.11"
 dependencies = [
-    "livekit-agents==1.8.1",
+    # Pinned to what is installed and tested. 1.8.1 was declared while 1.8.2 was
+    # installed, so the local green signal came from a version CI would not have
+    # used - the same "green from a dependency the gate does not have" trap
+    # docs/evidence/2026-09-17-spike0b-livekit-installed.md records, inverted.
+    "livekit-agents==1.8.2",
+    # One plugin per surviving vendor. Deepgram covers STT *and* TTS (Aura-2),
+    # and Google is the Gemini adapter - verified against the installed package:
+    # `google.LLM(*, model, api_key, temperature, ...)` reports provider
+    # "Gemini", and `deepgram.TTS(*, model, encoding, sample_rate, api_key)` has
+    # no voice_id parameter at all.
     "livekit-plugins-deepgram",
-    "livekit-plugins-elevenlabs",
-    "livekit-plugins-openai",
+    "livekit-plugins-google",
     "livekit-plugins-silero",
-    "livekit-plugins-turn-detector",
+    # Removed, and this was a CI break rather than untidiness: elevenlabs and
+    # openai are the two vendors dropped in docs/WORKLOG.md Session 2, neither
+    # is installed, and neither is imported any more - while google, which
+    # main.py now imports, was not declared at all. `pip install -e ".[dev]"`
+    # would have installed the wrong plugin set and errored at test collection.
+    # turn-detector is also gone: nothing in aiscelapeus/ imports it.
     "moss>=1.11.0",
-    "openai>=1.0",
+    # NOT a direct dependency by choice - it arrives transitively via
+    # livekit-agents regardless (Spike 0). Declaring it would state an intent to
+    # call OpenAI, which Session 2 decided against.
     "python-dotenv>=1.0",
     "opentelemetry-sdk>=1.27",
     "opentelemetry-exporter-otlp-proto-http>=1.27",
@@ -33,6 +48,18 @@ dev = [
     "types-PyYAML",
 ]
 
+# Building the voice test corpus: formant-preserving pitch shift, time-stretch,
+# ambient mixing and WAV I/O. Deliberately NOT in `dev`, and never in the
+# runtime dependency list - these are needed only by
+# `scripts/build_corpus.py`, which runs once to produce committed artefacts.
+# The default `pytest` run reads the committed manifest.json and imports none of
+# this, so the hermetic suite stays installable without a compiler toolchain.
+audio = [
+    "librosa>=0.10",
+    "soundfile>=0.12",
+    "numpy>=1.24",
+]
+
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["aiscelapeus*"]
@@ -41,7 +68,17 @@ include = ["aiscelapeus*"]
 asyncio_mode = "auto"
 testpaths = ["tests"]
 # A warning in a safety-critical path is a defect, not a note.
-filterwarnings = ["error"]
+filterwarnings = [
+    "error",
+    # The one exemption, and it is narrow by design. conftest's `_no_real_dotenv`
+    # warns when a dotenv exists at the repo root: the suite is hermetic, but a
+    # newly-written test that reads the ambient environment would pass on that
+    # machine and fail on a runner. Under a bare `error` that advisory would fail
+    # the whole suite for any developer who keeps a .env - making the hermetic
+    # check itself the reason to distrust the suite. Scoped to its own class so
+    # nothing else is widened. CI has no dotenv, so it never fires there.
+    "default::tests.conftest._HermeticEnvironmentWarning",
+]
 markers = [
     "contract: golden-fixture tests shared across the Python/TypeScript boundary",
     "infra: requires real external infrastructure (Moss, Redis, Qdrant); not in the blocking gate",
