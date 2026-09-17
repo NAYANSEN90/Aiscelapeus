@@ -5,8 +5,17 @@
 # null when nothing should.
 #
 # This file is the specification. The matcher is an implementation of it.
-# Phrasings here came from three sources: the original marker list, utterances
-# the readiness reviews measured as missed, and negations that wrongly fired.
+# Phrasings here came from four sources: the original marker list, utterances
+# the readiness reviews measured as missed, negations that wrongly fired, and
+# the five verified defects in docs/reviews/2026-09-17-phrases-negation-defects.md.
+#
+# `expect` is the marker id `hard_escalation_triggered` must return - the first
+# in MARKERS order. An utterance reporting SEVERAL life threats in one breath
+# additionally carries `expect_also`: every marker id in it must appear in
+# `find_markers`. That field exists because "the first marker fires" is a
+# strictly weaker claim than "all of them do", and the difference is exactly
+# where defect F-001 hid - a single surviving marker masked two independent
+# failures underneath a correct-looking criticality level.
 
 # ---------------------------------------------------------------- must escalate
 # Breathing absent or failing.
@@ -131,6 +140,178 @@
   expect: drowning
   why: past tense
 
+# -------------------------------------------- the five verified defects, closed
+# Every utterance below returned the WRONG answer against the module as it
+# stood on 17 Sep 2026, verified by execution and recorded in
+# docs/reviews/2026-09-17-phrases-negation-defects.md. They are the corpus gaps
+# that review identified: multi-clause utterances, stutter and self-repair
+# phrasings, "can't wake" forms, and non-"water" drowning locations.
+
+# F-001 - the discourse marker "no". The single most natural answer to "is he
+# breathing?" returned NOTHING, because a flat 3-word lookback read the "no" of
+# "no, in answer to your question" as a logical negation of the finding.
+- text: "no, he's not breathing"
+  expect: not_breathing
+  why: >
+    The most natural possible answer to "is he breathing?", and it returned
+    NOTHING. The leading "no" answers the question; it does not negate the
+    finding that follows it. A caller giving the plainest cardiac-arrest report
+    there is must not be invisible to the deterministic layer.
+
+- text: "no he's not breathing"
+  expect: not_breathing
+  why: >
+    The same utterance unpunctuated, which is what STT emits when the caller
+    does not pause. Stopping the lookback at punctuation alone would fix the
+    comma form and leave this one silent, so this entry is what forces the
+    suppression rule to be about clause structure rather than about commas.
+
+- text: "no, no, he is not breathing"
+  expect: not_breathing
+  why: >
+    Stutter under stress. A caller repeating themselves in panic must not
+    disarm the safety net - panic is correlated with the findings that matter,
+    so the phrasings it produces are the ones the net most needs to hear.
+
+# F-001 - adjacent-clause leakage. Reporting two life threats in one breath
+# made the second one vanish.
+- text: "he's not moving, he's not breathing"
+  expect: not_breathing
+  expect_also: [not_breathing, unresponsive]
+  why: >
+    Two life threats in one breath. The "not" of "not moving" sat inside the
+    lookback for "not breathing", so the second finding - the one that dictates
+    compressions - was suppressed by the first. Reporting more must never
+    report less.
+
+- text: "no pulse, he is not breathing"
+  expect: not_breathing
+  expect_also: [no_pulse, not_breathing]
+  why: >
+    The textbook cardiac-arrest report: absent circulation and absent
+    respiration, stated together. Only `no_pulse` fired. Both findings are
+    independently sufficient to start CPR and both must be on the record.
+
+- text: "he's not - no, he's not responding"
+  expect: unresponsive
+  why: >
+    Self-repair mid-sentence, which is how people actually speak when
+    frightened. Both the dash and the "no" landed in the lookback and the
+    finding vanished.
+
+# F-005 - deterioration reported after a denial. The recovery narrative in
+# reverse: the module handled "was bad, now fine" and had no path for "was
+# fine, now bad" inside one utterance, because it decided on the first match.
+- text: "he is not unresponsive - wait, no, he IS unresponsive"
+  expect: unresponsive
+  why: >
+    A responder who denies a finding and then corrects TOWARD danger is filing
+    a deterioration report - the most urgent thing they can say. Deciding the
+    whole utterance on the first occurrence of the marker dropped it entirely.
+    The live second occurrence is the one that counts.
+
+- text: "he's not unresponsive. he's unresponsive now."
+  expect: unresponsive
+  why: >
+    The same correction across a sentence boundary rather than a dash. The
+    first sentence is history and the second is the current finding; a matcher
+    that only ever examines the first occurrence reports the history.
+
+- text: "she was not breathing but now she is breathing again, wait, she's not breathing"
+  expect: not_breathing
+  why: >
+    A recovery narrative followed by a relapse, in one utterance. The recovery
+    clause is correctly suppressed; the relapse after it is not a repeat of it
+    and must fire. This is the case that proves suppression is per-occurrence
+    rather than per-marker.
+
+# F-003 - "can't wake" phrasing.
+- text: "I can't wake him"
+  expect: unresponsive
+  why: >
+    First-person, "up" dropped. This is what someone says at 3am about the
+    person beside them, and it is at least as common as the third-person
+    "he won't wake up" the module already covered. It returned NOTHING.
+
+- text: "I can't wake him up"
+  expect: unresponsive
+  why: first-person with the trailing "up", the other half of the same phrasing
+
+- text: "She can't wake him up"
+  expect: unresponsive
+  why: >
+    Third-person subject with the same "can't wake" verb, as a bystander
+    relays it. Covers the subject position independently of the "up".
+
+# F-004 - drowning vocabulary beyond the literal word "water".
+- text: "We pulled him out of the pool, not moving"
+  expect: unresponsive
+  expect_also: [drowning, unresponsive]
+  why: >
+    Nobody says "water" about a swimming pool, and the pattern required that
+    literal word. A missing `drowning` means the hypoxic-arrest sequence -
+    five rescue breaths BEFORE compressions, which inverts adult BLS - is
+    never signalled, so a paediatric drowning is handled as a standard adult
+    arrest. `unresponsive` firing here is precisely what masked the gap.
+
+- text: "We pulled a little boy out of the pool"
+  expect: drowning
+  why: >
+    The submersion report on its own, with no other marker present to mask the
+    miss. The existing corpus entry passed only because the word "drowning"
+    happened to appear separately in it.
+
+- text: "We dragged her out of the lake"
+  expect: drowning
+  why: >
+    A second location and a second verb, so the rule is a vocabulary rather
+    than one more special case for "pool".
+
+- text: "I got the baby out of the bath"
+  expect: drowning
+  why: >
+    Domestic submersion - the commonest paediatric drowning setting there is,
+    and the one least likely to be described with the word "water".
+
+# --------------------------------------------- found by independent review
+# These were NOT in the five-defect review. They are holes the fixes for it
+# opened or left open, found by a fresh reviewer against the corrected module
+# and confirmed by execution. Each is a missed escalation - the fatal
+# direction - so they are recorded here as spec, not as notes.
+
+- text: "He was talking to me fine a minute ago, now he's not breathing, but earlier he seemed totally ok"
+  expect: not_breathing
+  why: >
+    Background narration, not a recovery narrative. The caller reports the
+    arrest and keeps talking about how the patient seemed beforehand, which is
+    what frightened people do. The finding is present tense and nothing
+    retracts it. A guard that scanned the whole preceding text for a past-tense
+    verb suppressed this entirely - the flat-window failure mode F-001 removed,
+    reintroduced in the direction where it kills rather than merely annoys.
+
+- text: "No, her lips are blue"
+  expect: cyanosis
+  why: >
+    A possessive determiner heads the subject of a fresh clause exactly as a
+    pronoun does, so a discourse "no" that has to cross one is not negating
+    what follows. Treating "her" as a function word let the "no" reach a
+    finding about a different subject and silence it.
+
+- text: "No, his heart has stopped"
+  expect: cardiac_arrest
+  why: >
+    The same structure on a different marker and a different possessive, so
+    the rule is about the grammatical class rather than about one word.
+
+- text: "Her breathing has stopped"
+  expect: not_breathing
+  why: >
+    Subject-first phrasing of the finding the marker already covered
+    verb-first. "she has stopped breathing" fired and "her breathing has
+    stopped" reported nothing - the same words, the same finding, the other
+    way round. A pre-existing gap unrelated to the five negation defects,
+    found while testing the possessive-determiner fix.
+
 # ------------------------------------------------------------- must NOT escalate
 # Negation. These forced an irreversible Level 5 on the original matcher.
 - text: "The casualty is NOT unresponsive"
@@ -148,6 +329,26 @@
 - text: "He was unresponsive but he's awake now"
   expect: null
   why: past-tense finding, explicitly contradicted
+
+# F-002 - contracted past tense in a recovery narrative. This is the one
+# defect whose fix NARROWS firing, so it is the one entry here that trades in
+# the unsafe direction, and it is deliberately the tightest: it suppresses only
+# when the past tense AND an explicit later contradiction are both present.
+- text: "He wasn't breathing properly for a second there but he is breathing now"
+  expect: null
+  why: >
+    A recovery narrative with the past tense fused into "wasn't". The guard
+    required a bare `was|were|had` token, so this escalated a recovered faint
+    to Critical - and because the ratchet correctly refuses to undo an
+    escalation, one spurious firing was permanent for the rest of the incident.
+    Suppressed only because the contradiction ("but he is breathing now") is
+    explicitly present; without it the finding stands.
+
+- text: "He hadn't been breathing but he's talking to me now"
+  expect: null
+  why: >
+    The same contracted past tense in a different auxiliary, so the rule is
+    about tense rather than about the single word "wasn't".
 
 - text: "No cardiac arrest here, just a panic attack"
   expect: null
@@ -182,6 +383,77 @@
     Negative control containing "stopped", to catch a matcher that becomes too
     eager about that word while fixing "stopped breathing".
 
+- text: "Her bleeding has stopped"
+  expect: null
+  why: >
+    The same control in the subject-first shape that "her breathing has
+    stopped" now matches, so widening that pattern cannot start firing on any
+    noun that stops. The pairing is the point: one word differs between this
+    entry and an escalating one.
+
+- text: "The vomiting has stopped"
+  expect: null
+  why: >
+    A second noun in the same shape, so the pattern is pinned to "breathing"
+    rather than to "<anything> has stopped".
+
 - text: "I've put a dressing on the wound"
   expect: null
   why: negative control, ordinary intervention report
+
+# Controls on the clause-scoped suppression itself. Narrowing suppression can
+# only make the net fire more often, so these are the entries that bound how
+# much more. Each is a phrasing where the negator DOES govern the finding and
+# the fix must not have broken that.
+- text: "He's never had a cardiac arrest"
+  expect: null
+  why: >
+    The negator reaches the finding across nothing but an auxiliary and a
+    determiner ("never had a"), so it governs it. A medical-history question
+    must not escalate a live incident. This is the control that forced the
+    suppression rule to treat auxiliaries as transparent rather than as a new
+    clause.
+
+- text: "He is not unresponsive"
+  expect: null
+  why: >
+    The minimal adjacent negation, with no punctuation and no other clause to
+    confuse it. If this ever fires, the clause-scoped rule has stopped
+    recognising the plainest negation there is.
+
+- text: "He's not really breathing badly, he's just winded"
+  expect: null
+  why: >
+    A degree adverb between the negator and the finding. "really" cannot begin
+    a new predicate, so the negation still reaches across it - unlike a subject
+    pronoun, which is what separates this from "no, he's not breathing".
+
+- text: "There's no pool here, he collapsed on the pavement"
+  expect: null
+  why: >
+    Control on the widened drowning vocabulary. The location words are now
+    matched, so an utterance that merely MENTIONS one - and negates it - must
+    not produce a drowning marker and route a collapse to the rescue-breath
+    sequence.
+
+- text: "He got out of the pool and sat down"
+  expect: null
+  why: >
+    Control on the drowning verb list. Someone leaving a pool under their own
+    power is not a submersion. "got ... out of the pool" is deliberately close
+    to the matched "got the baby out of the bath", and the difference - a
+    casualty being extracted by someone else - is what the marker means.
+
+- text: "I pulled the plug out of the bath"
+  expect: null
+  why: >
+    Found by independent review. The extracted object must be the casualty,
+    which is what the pattern claims. Draining a bath must not request the
+    paediatric rescue-breath protocol. Over-firing is the safe direction, but a
+    net that pages a clinician for a bath plug is a net that gets ignored.
+
+- text: "We got the dog out of the pool"
+  expect: null
+  why: >
+    The same over-match with an animate but non-human object, so the exclusion
+    is about who the casualty is rather than about inanimacy.

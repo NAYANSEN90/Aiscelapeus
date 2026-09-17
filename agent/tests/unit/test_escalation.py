@@ -60,6 +60,10 @@ def _corpus() -> list[dict]:
 CORPUS = _corpus()
 ESCALATING = [case for case in CORPUS if case["expect"] is not None]
 NON_ESCALATING = [case for case in CORPUS if case["expect"] is None]
+#: Utterances reporting several life threats in one breath. Driven through the
+#: applier separately: `find_markers` returning all of them says nothing about
+#: which one the clinician is actually paged under.
+MULTI_MARKER = [case for case in CORPUS if case.get("expect_also")]
 
 
 def _id(case: dict) -> str:
@@ -581,9 +585,74 @@ def test_the_corpus_drives_every_declared_marker_through_the_applier() -> None:
     assert declared == driven, (
         f"markers never driven through the applier: {sorted(declared - driven)}"
     )
-    assert len(ESCALATING) >= 26, (
+    assert len(ESCALATING) >= 41, (
         f"the corpus sweep must not silently shrink; got {len(ESCALATING)} cases"
     )
+
+
+@pytest.mark.parametrize("case", MULTI_MARKER, ids=_id)
+async def test_a_co_reported_finding_escalates_under_an_attributable_marker(
+    case: dict, state: TriageState, recorder: Recorder
+) -> None:
+    # falsifier: an utterance reporting several life threats escalates, so the
+    # level looks right, while the clinician is paged under a category that
+    # names only one of them - and the co-occurring finding that dictates the
+    # protocol (a submersion needing rescue breaths first, say) never reaches
+    # the record the clinician reads. Matching is not acting: test_phrases.py
+    # proves all the markers fire, and this proves the action carries one of
+    # them as an attributable cause rather than escalating anonymously.
+    outcome = await apply_hard_escalation(
+        case["text"],
+        state=state,
+        on_state_change=recorder.on_state_change,
+        on_escalate=recorder.on_escalate,
+        source=SOURCE_TRANSCRIPT,
+    )
+
+    assert outcome is not None, (
+        f"no escalation for the multi-finding report {case['text']!r}"
+    )
+    assert outcome.marker_id in set(case["expect_also"]), (
+        f"escalated under {outcome.marker_id!r}, which is not one of the "
+        f"reported findings {sorted(case['expect_also'])}"
+    )
+    assert state.level is Criticality.CRITICAL
+    assert state.escalation is EscalationStatus.REQUESTED
+    _, category = recorder.escalate_calls[0]
+    assert category == outcome.marker_id, (
+        "the page category must be the marker that fired, so a clinician can "
+        "be told which finding forced the escalation"
+    )
+
+
+async def test_every_marker_in_a_co_reported_utterance_reaches_the_record(
+    state: TriageState, recorder: Recorder
+) -> None:
+    # falsifier: the applier escalates on the first marker and the incident
+    # history records only that one, so a poolside arrest is filed as
+    # "unresponsive" with no trace of the submersion - and the hypoxic-arrest
+    # sequence, which inverts adult BLS, is never signalled to anyone reading
+    # the record afterwards.
+    from aiscelapeus.phrases import find_markers
+
+    text = "We pulled him out of the pool, not moving"
+    reported = {hit.marker_id for hit in find_markers(text)}
+    assert {"drowning", "unresponsive"} <= reported
+
+    outcome = await apply_hard_escalation(
+        text,
+        state=state,
+        on_state_change=recorder.on_state_change,
+        on_escalate=recorder.on_escalate,
+        source=SOURCE_TRANSCRIPT,
+    )
+
+    assert outcome is not None
+    assert state.level is Criticality.CRITICAL
+    # The matched text is what a clinician is shown as the cause, so it has to
+    # quote the utterance rather than a marker name.
+    reason, _ = recorder.escalate_calls[0]
+    assert outcome.matched_text in reason.casefold()
 
 
 # ------------------------------------------------------------ the vendor boundary
