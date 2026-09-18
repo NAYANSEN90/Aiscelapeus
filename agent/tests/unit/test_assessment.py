@@ -42,6 +42,7 @@ from aiscelapeus.assessment import (
     Breathing,
     Certainty,
     Finding,
+    HazardClass,
     Letter,
     PulseReport,
     Responsiveness,
@@ -149,6 +150,21 @@ def _well_patient() -> AssessmentInputs:
 #: takes the product from ~93k combinations to ~373k, and the walk is still
 #: EXHAUSTIVE rather than sampled - see `_every_reachable_branch` for what had
 #: to change to keep it affordable.
+#:
+#: BLOCKER 3 OF THE THIRD CLINICAL REVIEW took the scene from three values to
+#: FIVE, which takes this full product to ~560k. Built from `SceneSafety`
+#: itself, so the two new members are walked without anyone remembering to add
+#: them - and that is also why the hazard class is a refinement of this input
+#: rather than a separate field: a separate three-value `Finding[HazardClass]`
+#: field would have MULTIPLIED this to ~1.12M, where two extra members on an
+#: existing field only add two slices.
+#:
+#: THE MAIN WALK CROSSES `_DECIDING_DOMAINS`, NOT THIS, and at ~560k this is why
+#: - see `_CROSSED_OUT_OF_THE_WALK`. This mapping remains the full domain of
+#: every input, which is what the pulse row varies over and what the per-name
+#: `_FINDING_PAIRS` cache is built from; the walk crosses the subset a branch
+#: can actually depend on. The measured numbers are in
+#: `test_the_exhaustive_walk_itself_stays_inside_the_suite_budget`.
 _INPUT_DOMAINS: dict[str, tuple[object, ...]] = {
     "scene_safe": (None, *SceneSafety),
     "responsiveness": (None, *Responsiveness),
@@ -160,6 +176,42 @@ _INPUT_DOMAINS: dict[str, tuple[object, ...]] = {
     "submersion": (None, True, False),
     "exposure_reviewed": (None, True, False),
     "pulse": (None, *PulseReport),
+}
+
+#: The one input CROSSED OUT of the main walk, and the only one that may ever be
+#: - so it is named here as a set of one rather than left as a special case
+#: inside the walk, and the reason it is sound is asserted rather than asserted
+#: about.
+#:
+#: WHY THIS EXISTS. Blocker 3 of the third clinical review took `SceneSafety`
+#: from three members to five, which took the product from 373k to 560k and the
+#: walk from ~4.9 s to ~8.0 s against ASM-09's 8.0 s bound - measured, and
+#: FAILING intermittently at 8.04-8.05 s on two runs out of three. A flaky
+#: safety test is one that gets deleted, and raising the bound to hide a real
+#: regression is the failure mode CLAUDE.md names, so neither was acceptable.
+#:
+#: WHY `pulse` AND NOTHING ELSE. It is the one input that provably cannot change
+#: a branch, and the proof is structural rather than empirical: `_Consulted`
+#: deliberately has NO `pulse` accessor, so there is no expression by which any
+#: path can read it (ASM-12). Crossing it into the product therefore multiplies
+#: every safety row's work by four and adds no reachable state at all. That is
+#: not sampling - nothing decision-relevant is dropped - and the distinction
+#: matters because sampling the walk was considered and rejected when the space
+#: last grew.
+#:
+#: WHAT STILL WALKS IT AT FULL STRENGTH. `test_the_pulse_report_cannot_change_
+#: any_branch` crosses all four pulse values against the whole rest of the
+#: space, which is the row that would notice if the premise above ever stopped
+#: holding, and `test_no_input_field_is_declared_and_never_read` asserts `pulse`
+#: is the only unread field. So the claim is not assumed here - it is asserted
+#: by the two rows that own it, and this set is what they license.
+_CROSSED_OUT_OF_THE_WALK: frozenset[str] = frozenset({"pulse"})
+
+#: The domains the main walk actually crosses: everything a branch can depend on.
+_DECIDING_DOMAINS: dict[str, tuple[object, ...]] = {
+    name: values
+    for name, values in _INPUT_DOMAINS.items()
+    if name not in _CROSSED_OUT_OF_THE_WALK
 }
 
 #: One `Finding` per (name, value) pair, shared across the whole walk, as a
@@ -216,7 +268,7 @@ def _consulted_by(assignment: dict[str, object]) -> frozenset[str]:
 
 
 #: What each row below actually reads off a branch. The walk keeps THIS rather
-#: than the `AssessmentBranch`, because holding 373k live branches costs far
+#: than the `AssessmentBranch`, because holding 140k live branches costs far
 #: more memory than the assertions need - and, worse, would pin every one of
 #: them in `assessment._recent_branches`' bounded ring semantics in a way the
 #: registry was never sized for.
@@ -251,11 +303,27 @@ def _every_reachable_branch() -> list[tuple[dict[str, object], _Walked]]:
     `_Walked` tuple instead of retaining the branch. Sampling was the
     alternative and was rejected: "no reachable branch defers an established
     catastrophic bleed" is worth nothing as a statement about 5% of paths.
+
+    CROSSES `_DECIDING_DOMAINS` RATHER THAN `_INPUT_DOMAINS`, which is what kept
+    it inside the budget when Blocker 3 of the third clinical review took the
+    scene to five members. `pulse` is held at UNKNOWN here because no path can
+    read it - see `_CROSSED_OUT_OF_THE_WALK` for the structural proof and for
+    the two rows that still walk that axis at full strength. Every assignment
+    below still carries a `pulse` key, so the rows that group or filter on it
+    read the same shape they always did; the value is simply the only one the
+    decision path could ever have seen.
+
+    STILL EXHAUSTIVE OVER EVERYTHING A BRANCH CAN DEPEND ON, which is the
+    property the safety rows need. "No reachable branch does X" remains a
+    statement about every reachable branch, because an input nothing reads
+    generates no additional reachable branches.
     """
-    names = list(_INPUT_DOMAINS)
+    names = list(_DECIDING_DOMAINS)
     results: list[tuple[dict[str, object], _Walked]] = []
     append = results.append
     build = AssessmentInputs
+    #: The crossed-out inputs, at the only value the decision path can see.
+    fixed = {name: None for name in _CROSSED_OUT_OF_THE_WALK}
 
     for combination in itertools.product(*(_FINDING_PAIRS[n] for n in names)):
         # `combination` is a tuple of (value, Finding) pairs in `names` order,
@@ -269,7 +337,10 @@ def _every_reachable_branch() -> list[tuple[dict[str, object], _Walked]]:
         )
         append(
             (
-                {name: pair[0] for name, pair in zip(names, combination)},
+                {
+                    **{name: pair[0] for name, pair in zip(names, combination)},
+                    **fixed,
+                },
                 _Walked(
                     step=branch.step,
                     letter=branch.letter,
@@ -284,7 +355,7 @@ def _every_reachable_branch() -> list[tuple[dict[str, object], _Walked]]:
     return results
 
 
-#: Computed once: the walk is ~373k combinations and every structural row below
+#: Computed once: the walk is ~140k combinations and every structural row below
 #: asks a different question of the same set.
 #:
 #: Timed here rather than by a test re-walking the space, because re-walking
@@ -441,7 +512,7 @@ def test_scene_safety_blocks_every_letter_including_a_reported_arrest() -> None:
     )
 
     unsafe = AssessmentInputs(
-        scene_safe=established(SceneSafety.UNSAFE),
+        scene_safe=established(SceneSafety.UNSAFE_ADJACENT),
         responsiveness=established(Responsiveness.UNRESPONSIVE),
         breathing=established(Breathing.NONE),
     )
@@ -460,7 +531,7 @@ def test_a_committed_responder_advances_past_a_live_hazard() -> None:
     # un-take it. Verified as reachable before the fix: scene_safe=False +
     # UNRESPONSIVE + breathing=NONE returned INSTRUCT_MAKE_SCENE_SAFE forever.
     committed = AssessmentInputs(
-        scene_safe=established(SceneSafety.UNSAFE_RESPONDER_COMMITTED),
+        scene_safe=established(SceneSafety.UNSAFE_ADJACENT_COMMITTED),
         responsiveness=established(Responsiveness.UNRESPONSIVE),
         breathing=established(Breathing.NONE),
         age_band=established(AgeBand.ADULT),
@@ -474,8 +545,445 @@ def test_a_committed_responder_advances_past_a_live_hazard() -> None:
     # And advancing is not the same as the hazard being gone: every instruction
     # past the gate must keep saying so, or the responder stops watching for it.
     assert "hazard" in branch.rationale.lower()
-    assert SceneSafety.UNSAFE_RESPONDER_COMMITTED.hazard_persists is True
-    assert SceneSafety.UNSAFE_RESPONDER_COMMITTED.blocks_patient_contact is False
+    assert SceneSafety.UNSAFE_ADJACENT_COMMITTED.hazard_persists is True
+    assert SceneSafety.UNSAFE_ADJACENT_COMMITTED.blocks_patient_contact is False
+
+
+# --------- BLOCKER 3 OF THE THIRD CLINICAL REVIEW: the hazard in the patient
+
+
+def test_a_patient_still_in_circuit_is_never_told_to_start_compressions() -> None:
+    # falsifier: THE REPRODUCED DEFECT, AND IT KILLS THE RESPONDER.
+    # scene_safe=UNSAFE_RESPONDER_COMMITTED + UNRESPONSIVE + breathing NONE
+    # returned INSTRUCT_CPR at CRITICAL, with a hazard warning that spoke of
+    # "watching" the hazard and getting clear "if it closes in" and never
+    # mentioned TOUCHING the patient. A bystander who said "there's a live
+    # cable, I'm already next to him" was told to put both hands on an
+    # energised chest: compressions ARE the mechanism of injury there, so the
+    # result is two casualties instead of one - the exact outcome the DR gate
+    # exists to prevent, reached THROUGH the gate because Blocker 3(a)'s
+    # three-state fix made the committed state advance by design.
+    in_circuit = AssessmentInputs(
+        scene_safe=established(SceneSafety.UNSAFE_IN_PATIENT),
+        responsiveness=established(Responsiveness.UNRESPONSIVE),
+        breathing=established(Breathing.NONE),
+        age_band=established(AgeBand.ADULT),
+    )
+    branch = decide(in_circuit)
+    assert branch.step is AssessmentStep.INSTRUCT_BREAK_ELECTRICAL_CONTACT, (
+        f"a patient still in contact with a live conductor must reach the "
+        f"break-the-contact instruction, not {branch.step}"
+    )
+    lowered = branch.rationale.lower()
+    # The prohibition has to name the ACTION, not merely the hazard: "be
+    # careful of electricity" alongside compressions is what the old suffix
+    # amounted to, and it is what killed the rescuer.
+    assert "do not touch the patient" in lowered, (
+        "the instruction must forbid patient CONTACT explicitly; a warning "
+        "about the hazard next to a compressions order is the defect itself"
+    )
+    assert "completes the circuit" in lowered, (
+        "and say why, because a bystander who does not know the mechanism "
+        "will reach for the chest anyway"
+    )
+    # And it must say what to DO instead, in the order a bystander can act on.
+    # An instruction that only forbids leaves the patient in arrest.
+    for method in ("plug", "breaker", "isolat"):
+        assert method in lowered, (
+            f"the break-the-contact methods must be named; {method!r} missing"
+        )
+    assert "non-conducting" in lowered or "non-conductor" in lowered, (
+        "pushing the casualty clear with a dry non-conductor is the one "
+        "method a lone bystander can often manage"
+    )
+    # THE TETANIC GRIP, and the zero-risk method that has to come first.
+    # Found by the independent clinical review of this fix: the instruction
+    # spoke only to the responder, so the free method - shout at an awake
+    # patient to let go - was missing, and a responder who shouted and got no
+    # response would read a fully conscious patient as unconscious. A current
+    # across the hand clamps the grip shut, which is the classic presentation.
+    assert "let go" in lowered, (
+        "telling an awake patient to let go costs nothing and risks nobody, "
+        "so it must be the first method offered"
+    )
+    assert "cannot let go" in lowered, (
+        "and the reason they may fail to comply must be stated, or the "
+        "responder misreads a tetanic grip as unconsciousness"
+    )
+    # WHO TO CALL. For a cable, a rail or overhead lines the isolation is not a
+    # switch anybody at the scene can throw, so the one action that makes that
+    # method performable at all is naming the call. Found by the same review:
+    # the instruction said "get somebody to have it isolated" and named nobody.
+    assert "emergency services" in lowered, (
+        "network isolation is not performable by a bystander alone; the call "
+        "that makes it happen must be named, or the method is an instruction "
+        "to do something impossible"
+    )
+    # ENERGISED WATER. Water carries the current out to whoever stands in it,
+    # so the push-clear method is off and the whole wet area is live. Found by
+    # the same review, which reproduced `submersion=True` changing not one byte.
+    assert "as live" in lowered, (
+        "a wet scene must be treated as live throughout, or a responder "
+        "standing in the same puddle pushes the casualty clear and is "
+        "electrocuted through the water"
+    )
+    # The honest half: sometimes they cannot, and the agent must say so rather
+    # than leave them improvising on a rail or overhead lines.
+    assert "stay well back" in lowered, (
+        "if the contact cannot be broken the answer is to stay back and wait "
+        "for isolation - this is the one place 'advance anyway' is wrong"
+    )
+    # And the moment it IS broken, this is an ordinary and survivable arrest.
+    assert "compressions start" in lowered, (
+        "the transition out of this state must be stated, or the gate becomes "
+        "the absorbing loop Blocker 3(a) killed"
+    )
+
+
+def test_the_in_patient_gate_does_not_lower_the_criticality_of_an_arrest() -> None:
+    # falsifier: BLOCKER 3(b), FOR THE THIRD TIME IN THIS MODULE. The scene gate
+    # did it first (SEVERE behind an unresolved scene with an arrest waiting),
+    # the Blocker 1 bleed hoist reintroduced it verbatim, and a third pre-A gate
+    # written with a pinned SEVERE would be the third instance of one defect -
+    # the clinician on the bridge sees a 4 and pages accordingly while the
+    # patient is pulseless behind a live cable. `_gate_floor` is shared, so this
+    # asserts the share rather than a copied line.
+    arrest = decide(
+        AssessmentInputs(
+            scene_safe=established(SceneSafety.UNSAFE_IN_PATIENT),
+            responsiveness=established(Responsiveness.UNRESPONSIVE),
+            breathing=established(Breathing.NONE),
+        )
+    )
+    assert arrest.step is AssessmentStep.INSTRUCT_BREAK_ELECTRICAL_CONTACT
+    assert arrest.criticality is Criticality.CRITICAL, (
+        f"the in-the-patient gate lowered a known arrest to {arrest.criticality}"
+    )
+    # And with no arrest behind it the gate keeps its own floor, so the rule
+    # above is not just "this gate always says 5".
+    no_arrest = decide(
+        AssessmentInputs(
+            scene_safe=established(SceneSafety.UNSAFE_IN_PATIENT),
+            responsiveness=established(Responsiveness.ALERT),
+            breathing=established(Breathing.NORMAL),
+        )
+    )
+    assert no_arrest.step is AssessmentStep.INSTRUCT_BREAK_ELECTRICAL_CONTACT
+    assert no_arrest.criticality is Criticality.SEVERE
+
+
+def test_no_reachable_branch_touches_a_patient_who_is_still_the_hazard() -> None:
+    # falsifier: the case above is fixed for the reported cell and some other
+    # combination of inputs still reaches a hands-on instruction with the
+    # hazard in the patient - the bleed hoist, the choking thrusts, the recovery
+    # position roll, any of which put a responder's hands on an energised
+    # casualty just as surely as compressions do. Walks the entire input space,
+    # so this is a statement about every path rather than about the one cell the
+    # reviewer happened to reproduce. That distinction is the whole reason this
+    # is a walk: Blocker 3 was reported on the CPR leaf, and the defect was in
+    # the GATE, which sits in front of all of them.
+    hands_on = {
+        AssessmentStep.INSTRUCT_CPR,
+        AssessmentStep.INSTRUCT_RESCUE_BREATHS_THEN_CPR,
+        AssessmentStep.INSTRUCT_CONTROL_BLEEDING_THEN_CPR,
+        AssessmentStep.INSTRUCT_CONTROL_BLEEDING,
+        AssessmentStep.INSTRUCT_CLEAR_AIRWAY_OBSTRUCTION,
+        AssessmentStep.INSTRUCT_CONTROL_BLEEDING_THEN_CLEAR_AIRWAY_OBSTRUCTION,
+        AssessmentStep.INSTRUCT_RECOVERY_POSITION,
+        AssessmentStep.INSTRUCT_AIRWAY_WITH_SPINAL_CARE,
+        AssessmentStep.INSTRUCT_SUPPORT_SEVERE_BREATHING_DIFFICULTY,
+    }
+    checked = 0
+    for assignment, walked in ALL_BRANCHES:
+        scene = assignment["scene_safe"]
+        if scene is None or not scene.is_in_the_patient:
+            continue
+        checked += 1
+        assert walked.step not in hands_on, (
+            f"{assignment} reached {walked.step}, which puts a responder's "
+            f"hands on a patient who is still completing a circuit"
+        )
+        # And it is not spared by being asked a question either: every cell
+        # here must reach the one instruction that resolves the hazard, because
+        # a question would spend a turn without removing the thing that is
+        # killing both of them.
+        assert (
+            walked.step is AssessmentStep.INSTRUCT_BREAK_ELECTRICAL_CONTACT
+        ), f"{assignment} reached {walked.step} rather than breaking the contact"
+    assert checked > 1000, (
+        f"the in-the-patient space must actually be walked; only {checked} "
+        f"matched"
+    )
+
+
+def test_the_hazard_warning_is_true_of_the_hazard_it_warns_about() -> None:
+    # falsifier: `_hazard_suffix` is one CONSTANT STRING for every hazard class,
+    # so two of the three classes get a warning that describes something else.
+    # "Keep them watching for it, get clear if it closes in" describes a hazard
+    # that MOVES TOWARD YOU: true of traffic, and the opposite of the truth for
+    # a hazard that is in the patient, where nothing closes in, watching does
+    # not help, and moving back is not the answer. The reviewer's point is that
+    # a warning which is wrong for the hazard is worse than no warning, because
+    # the responder acts on it.
+    adjacent = decide(
+        AssessmentInputs(
+            scene_safe=established(SceneSafety.UNSAFE_ADJACENT_COMMITTED),
+            responsiveness=established(Responsiveness.UNRESPONSIVE),
+            breathing=established(Breathing.NONE),
+        )
+    ).rationale.lower()
+    assert "closes in" in adjacent, (
+        "the work-beside class keeps the warning that is true of it - traffic "
+        "really does close in, and getting clear really is the answer"
+    )
+
+    in_patient = decide(
+        AssessmentInputs(
+            scene_safe=established(SceneSafety.UNSAFE_IN_PATIENT),
+            responsiveness=established(Responsiveness.UNRESPONSIVE),
+            breathing=established(Breathing.NONE),
+        )
+    ).rationale.lower()
+    assert "closes in" not in in_patient, (
+        "a hazard that is IN the patient does not close in, and telling the "
+        "responder to watch for it to do so is the wrong warning entirely"
+    )
+    assert "the contact, not something approaching" in in_patient, (
+        "the in-the-patient warning must name what the danger actually is"
+    )
+
+    # THE CONSUMING CLASS IS READ OFF A DECIDED BRANCH, NOT OFF `_hazard_suffix`,
+    # AND AN INDEPENDENT CLINICAL REVIEW IS WHY. The first version of this row
+    # called `_hazard_suffix(SceneSafety.UNSAFE_CONSUMING)` directly and
+    # justified it with "a consuming scene only reaches INSTRUCT_MAKE_SCENE_SAFE,
+    # which carries no suffix by design because it IS the hazard warning".
+    # EXECUTION FALSIFIED THAT justification: the move-to-safety string named no
+    # hazard at all, so the fire caller and the traffic caller were read
+    # byte-identical words and every word of the consuming class's clinical
+    # content reached nobody. 96 tests passed over dead clinical content, which
+    # is exactly the "mechanism whose only implementation is its own
+    # description" pattern this repo has five instances of. Asserting through
+    # the branch is what makes the content's REACHABILITY part of the claim.
+    consuming = decide(
+        AssessmentInputs(
+            scene_safe=established(SceneSafety.UNSAFE_CONSUMING),
+            responsiveness=established(Responsiveness.UNRESPONSIVE),
+            breathing=established(Breathing.NONE),
+        )
+    ).rationale.lower()
+    # Fire and gas are dose-over-time, so "it might close in" understates them:
+    # committed means dead in minutes, and the action is extraction.
+    assert "dose" in consuming, (
+        "a consuming hazard is dose-over-time and the warning must say so, "
+        "rather than describing a risk that stays the same while you work"
+    )
+    assert "clear air" in consuming, (
+        "and the action for it is extraction, not a standing watch"
+    )
+    for owed in ("fire", "smoke"):
+        assert owed in consuming, (
+            f"the fire caller must hear the hazard NAMED; {owed!r} missing, "
+            f"which is how a traffic-written string reached them instead"
+        )
+
+    # The three warnings are genuinely different text, which is what "L2 holds
+    # WHICH hazard it was" buys. Identical strings would pass every assertion
+    # above that only checks for a substring.
+    assert len({adjacent, in_patient, consuming}) == 3, (
+        "the per-class warnings must differ; identical text is the constant "
+        "string wearing three names"
+    )
+
+
+def test_every_hazard_class_has_a_warning_that_is_not_the_adjacent_one() -> None:
+    # falsifier: a hazard class is added to the enum later and `_hazard_suffix`
+    # falls through to the traffic text for it, which is exactly how the
+    # original defect existed - one class's warning applied to all of them. This
+    # asserts the mapping is total over the class enum rather than trusting a
+    # final `return` to be right for a member nobody has thought about yet.
+    from aiscelapeus.assessment import _hazard_suffix
+
+    adjacent_text = _hazard_suffix(SceneSafety.UNSAFE_ADJACENT)
+    seen: dict[HazardClass, str] = {}
+    for member in SceneSafety:
+        hazard = member.hazard
+        text = _hazard_suffix(member)
+        if hazard is None:
+            assert text == "", "a safe scene must carry no warning at all"
+            continue
+        assert text, f"{member.name} carries a hazard but no warning"
+        # Same class, same warning - the class is what the warning is about.
+        if hazard in seen:
+            assert seen[hazard] == text, (
+                f"{member.name} warns differently from another member of the "
+                f"same hazard class, so the text is keyed on the member rather "
+                f"than on the class it is about"
+            )
+        seen[hazard] = text
+        if hazard is not HazardClass.ADJACENT:
+            assert text != adjacent_text, (
+                f"{hazard.name} falls through to the work-beside warning, "
+                f"which is the constant-string defect for that class"
+            )
+    assert set(seen) == set(HazardClass), (
+        f"every hazard class must be reachable from some scene state and have "
+        f"its own warning; missing {set(HazardClass) - set(seen)}"
+    )
+
+
+def test_the_committed_answer_is_offered_only_where_it_can_be_honoured() -> None:
+    # falsifier: FOUND BY THE INDEPENDENT CLINICAL REVIEW OF THIS VERY FIX, and
+    # it is Blocker 3(a)'s absorbing loop rebuilt on fire WITH AN INVITATION
+    # ATTACHED. The move-to-safety instruction was one constant string that
+    # offered "if they are ALREADY beside the patient and will not leave, that
+    # is a different answer and the assessment continues" - which is true for
+    # the work-beside class, because it has a committed member, and FALSE for
+    # fire and for a patient in circuit, which deliberately do not. So a caller
+    # in a smoke-filled room was invited to say "I'm not leaving him" and the
+    # module had nothing to do with that answer but repeat itself forever. An
+    # escape offered by a machine that cannot honour it is worse than one not
+    # offered, because the caller stakes their life on the offer.
+    invitation = "will not leave"
+    for member in SceneSafety:
+        if not member.blocks_patient_contact:
+            continue
+        branch = decide(
+            AssessmentInputs(
+                scene_safe=established(member),
+                responsiveness=established(Responsiveness.UNRESPONSIVE),
+                breathing=established(Breathing.NONE),
+            )
+        )
+        offers = invitation in branch.rationale.lower()
+        # The class may offer the committed answer only if some member of the
+        # SAME hazard class can actually represent it.
+        honourable = any(
+            other.responder_committed and other.hazard is member.hazard
+            for other in SceneSafety
+        )
+        assert offers == honourable, (
+            f"{member.name} "
+            f"{'offers' if offers else 'does not offer'} the committed answer "
+            f"while the type "
+            f"{'can' if honourable else 'cannot'} honour it - an escape the "
+            f"machine refuses must not be dangled, and one it accepts must be "
+            f"described where it is reachable"
+        )
+
+
+def test_every_blocking_hazard_class_names_its_own_hazard() -> None:
+    # falsifier: the mirror of the row above, and the half that made the
+    # consuming class's clinical content DEAD. `_hazard_suffix` was made
+    # per-class while INSTRUCT_MAKE_SCENE_SAFE kept one hazard-agnostic string -
+    # so for the one class whose ONLY reachable step is that instruction, every
+    # word of the correct guidance existed in the module and reached no caller.
+    # A walk-level row rather than a per-class case, because the defect was
+    # precisely that one class was forgotten while the others were handled.
+    # SCOPED TO THE BLOCKING STATES, which is what the row's name says and what
+    # the defect was about. The COMMITTED state advances by design, so it
+    # reaches sixteen different steps and its hazard wording is carried by
+    # `_hazard_suffix` on each of them - asserted by
+    # `test_every_instruction_past_a_live_hazard_restates_it` and by
+    # `test_the_hazard_warning_is_true_of_the_hazard_it_warns_about`, not here.
+    # This row owns the states whose ONLY reachable step is a pre-A gate, which
+    # is precisely where a hazard-agnostic string left a class unserved.
+    reached: dict[SceneSafety, set[AssessmentStep]] = {}
+    for assignment, walked in ALL_BRANCHES:
+        scene = assignment["scene_safe"]
+        if scene is None or not scene.blocks_patient_contact:
+            continue
+        reached.setdefault(scene, set()).add(walked.step)
+
+    # Every blocking scene state must be reachable at all, or the assertions
+    # below are about nothing.
+    assert set(reached) == {m for m in SceneSafety if m.blocks_patient_contact}
+
+    #: The word each hazard class must say for itself, in whatever step it
+    #: reaches. Keyed on the class so a new class added later has no entry and
+    #: fails here rather than silently inheriting another class's words.
+    owed_by_class = {
+        HazardClass.ADJACENT: ("hazard",),
+        HazardClass.IN_PATIENT: ("contact",),
+        HazardClass.CONSUMING: ("smoke",),
+    }
+    assert set(owed_by_class) == set(HazardClass), (
+        "a hazard class with no owed word would inherit another class's "
+        "wording unnoticed, which is the defect this row exists for"
+    )
+    for scene, steps in sorted(reached.items(), key=lambda kv: kv[0].name):
+        hazard = scene.hazard
+        assert hazard is not None
+        # ONE STEP PER BLOCKING SCENE, and that is a property rather than an
+        # assumption: the scene block is the first thing `_decide` does and
+        # every blocking member returns from it unconditionally, so no other
+        # input can change the step. Asserted rather than relied on, because a
+        # future gate that made this false would otherwise silently reduce the
+        # loop below to whichever step happened to come first.
+        assert len(steps) == 1, (
+            f"{scene.name} reaches {sorted(s.name for s in steps)}; this row "
+            f"assumes a blocking scene returns from the pre-A gate on every "
+            f"input, so the per-class wording can be asserted from the scene "
+            f"alone. Widen the row before widening the gate."
+        )
+        for step in steps:
+            branch = decide(
+                AssessmentInputs(
+                    scene_safe=established(scene),
+                    # An arrest, so `_gate_floor`'s path is exercised too. The
+                    # step cannot depend on these - see the assertion above.
+                    responsiveness=established(Responsiveness.UNRESPONSIVE),
+                    breathing=established(Breathing.NONE),
+                )
+            )
+            assert branch.step is step, (
+                f"{scene.name} reached {branch.step.name} rather than the "
+                f"{step.name} the walk recorded for it"
+            )
+            lowered = branch.rationale.lower()
+            for owed in owed_by_class[hazard]:
+                assert owed in lowered, (
+                    f"{scene.name} reaches {step.name} with a rationale that "
+                    f"never says {owed!r}, so the caller is read words written "
+                    f"for a different hazard than the one they reported"
+                )
+
+
+def test_the_scene_question_asks_what_decides_whether_touching_is_safe() -> None:
+    # falsifier: the hazard CLASS is expressible in the type and the question
+    # never elicits it, so the discriminator is collected by nobody and the
+    # state is reached only if a caller volunteers "he's still touching the
+    # cable" unprompted. That is the recorded "escape hatch behind the wall it
+    # opens" defect in a new place: a type that can hold a distinction the
+    # question cannot ask is the same information loss the two-value verdict
+    # had, moved one layer out.
+    branch = decide(AssessmentInputs())
+    assert branch.step is AssessmentStep.ASK_SCENE_SAFE
+    lowered = branch.rationale.lower()
+    # Still the closed hazard list - this must not regress.
+    for hazard in ("traffic", "fire", "electricity"):
+        assert hazard in lowered
+    # And now the follow-up that decides the class. Asserted as the ASK, not as
+    # the word "touching" - MUTATION TESTING CAUGHT THAT EXACT WEAKNESS. The
+    # first version of this row asserted `"touching" in lowered`, and deleting
+    # the whole follow-up question left the later clause "makes touching them
+    # the injury" behind, which still matched. So the mutant SURVIVED and the
+    # row was checking a word that appears twice rather than the rule it stands
+    # for. This asserts the imperative that elicits the class.
+    assert "ask whether the patient is still" in lowered, (
+        "the question must ASK whether the patient is still in contact with "
+        "the conductor - that answer is what decides whether they may be "
+        "touched at all, and a type that can hold the distinction while the "
+        "question cannot elicit it loses the information all over again"
+    )
+    # The conductors a bystander would actually name, so the question is
+    # answerable rather than abstract.
+    assert "cable" in lowered, "and name what contact to look for"
+    # And the escape hatch is now offered rather than described only behind the
+    # instruction that blocks it.
+    assert "not leaving" in lowered, (
+        "'already beside them and not leaving' must be offered as an answer, "
+        "or the committed state is unreachable by the pinned phrasing"
+    )
 
 
 def test_every_instruction_past_a_live_hazard_restates_it() -> None:
@@ -510,24 +1018,101 @@ def test_every_instruction_past_a_live_hazard_restates_it() -> None:
     )
 
 
-def test_the_scene_state_is_a_three_member_enum_not_a_bool_plus_a_flag() -> None:
-    # falsifier: the escape is added as a second boolean field - `scene_safe`
-    # plus `responder_committed` - which makes (safe=True, committed=True)
-    # expressible and meaningless, and forces every reader of the pair to
-    # rediscover which of the four combinations are real. Same reasoning that
-    # made Breathing three-state rather than a bool plus a `gasping` flag.
+def test_the_scene_state_is_one_enum_not_a_verdict_plus_a_flag() -> None:
+    # falsifier: the escape, or the hazard class, is added as a second field -
+    # `scene_safe` plus `responder_committed`, or `scene_safe` plus
+    # `hazard_class` - which makes (safe=True, committed=True) and (SAFE, live
+    # cable) expressible and meaningless, and forces every reader of the pair to
+    # rediscover which of the combinations are real. Same reasoning that made
+    # Breathing three-state rather than a bool plus a `gasping` flag, applied a
+    # second time to the hazard class.
     assert [member.value for member in SceneSafety] == [
         "safe",
-        "unsafe",
-        "unsafe_responder_committed",
+        "unsafe_adjacent",
+        "unsafe_adjacent_committed",
+        "unsafe_in_patient",
+        "unsafe_consuming",
     ]
     fields = set(AssessmentInputs.__dataclass_fields__)
-    for smell in ("responder_committed", "scene_committed", "committed"):
-        assert smell not in fields, f"{smell} is the bool-plus-flag shape"
-    # Only ONE state blocks, so the gate cannot be re-widened into an absorbing
-    # one without this failing.
-    blocking = [m for m in SceneSafety if m.blocks_patient_contact]
-    assert blocking == [SceneSafety.UNSAFE]
+    for smell in (
+        "responder_committed",
+        "scene_committed",
+        "committed",
+        "hazard",
+        "hazard_class",
+        "scene_hazard",
+    ):
+        assert smell not in fields, f"{smell} is the verdict-plus-flag shape"
+
+    # Every member carries exactly one hazard class, and only the safe one
+    # carries none - so there is no member for which "which hazard is this?" is
+    # undecidable, which is what the two-value verdict made it.
+    assert SceneSafety.SAFE.hazard is None
+    for member in SceneSafety:
+        if member is SceneSafety.SAFE:
+            continue
+        assert member.hazard is not None, (
+            f"{member.name} is unsafe but carries no hazard class, so the "
+            f"warning for it cannot be true of it"
+        )
+
+    # And no member of HazardClass means "unknown" - the Breathing rule. An
+    # unasked scene is Finding.unknown(); a safe scene has `hazard is None`.
+    assert [m.value for m in HazardClass] == [
+        "adjacent",
+        "in_patient",
+        "consuming",
+    ]
+    for smell in ("UNKNOWN", "NONE", "UNSURE"):
+        assert smell not in HazardClass.__members__, (
+            f"HazardClass.{smell} is an illegal state expressible in the type: "
+            f"every match over it would need an arm the forgetting one routes "
+            f"silently"
+        )
+
+
+def test_only_a_hazard_you_can_work_beside_has_a_committed_escape_hatch() -> None:
+    # falsifier: BLOCKER 3 OF THE THIRD CLINICAL REVIEW, AS A PROPERTY OF THE
+    # TYPE. The escape hatch that Blocker 3(a) added for traffic is extended to
+    # every hazard class - so a bystander who said "there's a live cable, I'm
+    # already next to him" advances past the gate and is told to compress a
+    # patient still in circuit. Two casualties instead of one, which is the
+    # exact outcome the DR gate exists to prevent, reached THROUGH the gate.
+    # Asserted as an absent member rather than as a routing condition, because a
+    # condition downstream can be re-widened and a member that does not exist
+    # cannot be reached.
+    committed = [m for m in SceneSafety if m.responder_committed]
+    assert committed == [SceneSafety.UNSAFE_ADJACENT_COMMITTED], (
+        f"the committed escape hatch must exist for the work-beside class and "
+        f"for nothing else; got {[m.name for m in committed]}"
+    )
+    for member in committed:
+        assert member.hazard is HazardClass.ADJACENT, (
+            f"{member.name} lets a responder advance past a hazard that is not "
+            f"the survivable-to-work-beside class"
+        )
+    # No member for the hatch on the other two classes, by name.
+    for forbidden in (
+        "UNSAFE_IN_PATIENT_COMMITTED",
+        "UNSAFE_CONSUMING_COMMITTED",
+    ):
+        assert forbidden not in SceneSafety.__members__, (
+            f"SceneSafety.{forbidden} would make 'advance anyway' expressible "
+            f"for a hazard where advancing transfers the arrest to the rescuer"
+        )
+
+    # An in-the-patient hazard blocks patient contact however close the
+    # responder already is - which is the whole distinction the two-value
+    # verdict could not express.
+    assert SceneSafety.UNSAFE_IN_PATIENT.blocks_patient_contact is True
+    assert SceneSafety.UNSAFE_ADJACENT_COMMITTED.blocks_patient_contact is False
+    # And exactly the two survivable-contact states do not block, so the gate
+    # cannot be re-widened into an absorbing one - nor narrowed back into one.
+    not_blocking = [m for m in SceneSafety if not m.blocks_patient_contact]
+    assert not_blocking == [
+        SceneSafety.SAFE,
+        SceneSafety.UNSAFE_ADJACENT_COMMITTED,
+    ]
 
 
 def test_the_scene_gate_never_lowers_the_criticality_of_a_known_arrest() -> None:
@@ -536,7 +1121,7 @@ def test_the_scene_gate_never_lowers_the_criticality_of_a_known_arrest() -> None
     # the clinician on the bridge sees a 4 and pages accordingly while the
     # patient is pulseless. Verified before the fix: scene unknown +
     # UNRESPONSIVE + breathing=NONE gave SEVERE.
-    for scene in (Finding.unknown(), established(SceneSafety.UNSAFE)):
+    for scene in (Finding.unknown(), established(SceneSafety.UNSAFE_ADJACENT)):
         arrest = decide(
             AssessmentInputs(
                 scene_safe=scene,
@@ -676,9 +1261,30 @@ def test_no_reachable_branch_withholds_resuscitation_from_an_arrest() -> None:
     #
     # The CRITICAL category is unaffected either way, so nothing is
     # under-triaged while this happens: that is asserted for every precursor.
+    #
+    # AND ONE MORE, ADDED BY BLOCKER 3 OF THE THIRD CLINICAL REVIEW, with the
+    # narrowest argument of any of them because it is the only precursor that
+    # delays compressions on a patient already established as being in arrest.
+    #
+    # INSTRUCT_BREAK_ELECTRICAL_CONTACT belongs here because it is not a delay
+    # that trades the patient's life for something else - it is the ONLY route
+    # by which this patient can be resuscitated at all. Compressions on a
+    # casualty still completing a circuit electrocute the responder, so the
+    # alternative to this branch is not "compressions sooner", it is "two
+    # casualties and nobody compressing". The DR gate's founding case is exactly
+    # this one, and Blocker 3(a)'s absorbing-loop objection does not apply
+    # because the state is not absorbing: breaking the contact or isolating the
+    # supply changes `scene_safe`, and the next turn reaches compressions at
+    # CRITICAL - asserted below with the other precursors, so this cannot become
+    # a terminal state either.
+    #
+    # It is also why this is the one hazard class with no committed escape
+    # hatch: for traffic, "advance anyway" accepts a risk to a responder who has
+    # already accepted it, and here it transfers the arrest to them.
     permitted_precursors = {
         AssessmentStep.ASK_SCENE_SAFE,
         AssessmentStep.INSTRUCT_MAKE_SCENE_SAFE,
+        AssessmentStep.INSTRUCT_BREAK_ELECTRICAL_CONTACT,
         AssessmentStep.ASK_RESPONSIVENESS,
         AssessmentStep.INSTRUCT_CONTROL_BLEEDING,
     }
@@ -770,12 +1376,46 @@ def test_no_reachable_branch_withholds_resuscitation_from_an_arrest() -> None:
     # And the same for the scene precursor, which Blocker 3 is entirely about.
     committed = decide(
         AssessmentInputs(
-            scene_safe=established(SceneSafety.UNSAFE_RESPONDER_COMMITTED),
+            scene_safe=established(SceneSafety.UNSAFE_ADJACENT_COMMITTED),
             responsiveness=established(Responsiveness.UNRESPONSIVE),
             breathing=established(Breathing.NONE),
         )
     )
     assert committed.step in resuscitating
+
+    # AND THE IN-THE-PATIENT PRECURSOR, which is the one that most needs this
+    # assertion: a gate in front of an established arrest that could not be
+    # answered would be the expectant leaf with a warning on it. Breaking the
+    # contact is reported as a change to the SCENE - the hazard is no longer in
+    # the patient - and both answers a responder can give advance to
+    # compressions at CRITICAL.
+    in_circuit = decide(
+        AssessmentInputs(
+            scene_safe=established(SceneSafety.UNSAFE_IN_PATIENT),
+            responsiveness=established(Responsiveness.UNRESPONSIVE),
+            breathing=established(Breathing.NONE),
+        )
+    )
+    assert in_circuit.step is AssessmentStep.INSTRUCT_BREAK_ELECTRICAL_CONTACT
+    assert in_circuit.criticality is Criticality.CRITICAL, (
+        "the in-the-patient gate must not lower a known arrest's category"
+    )
+    for resolved in (
+        SceneSafety.SAFE,
+        SceneSafety.UNSAFE_ADJACENT_COMMITTED,
+    ):
+        freed = decide(
+            AssessmentInputs(
+                scene_safe=established(resolved),
+                responsiveness=established(Responsiveness.UNRESPONSIVE),
+                breathing=established(Breathing.NONE),
+            )
+        )
+        assert freed.step in resuscitating, (
+            f"breaking the contact into {resolved.name} must reach "
+            f"resuscitation on the next turn, or the gate is absorbing"
+        )
+        assert freed.criticality is Criticality.CRITICAL
 
 
 def test_no_reachable_branch_compresses_the_chest_of_an_awake_patient() -> None:
@@ -1122,8 +1762,17 @@ def test_no_reachable_branch_defers_an_established_catastrophic_bleed() -> None:
     # The ONLY things that may come between an established bleed and its
     # treatment, listed explicitly rather than skipped by a `continue`:
     #
-    # - the two scene-gate steps, because a responder who becomes the second
-    #   casualty cannot hold pressure on anything;
+    # - the THREE scene-gate steps, because a responder who becomes the second
+    #   casualty cannot hold pressure on anything. The third is
+    #   INSTRUCT_BREAK_ELECTRICAL_CONTACT, added by Blocker 3 of the third
+    #   clinical review, and it is the clearest case of that principle in the
+    #   module rather than an exception to it: holding pressure on the wound of
+    #   a patient still completing a circuit is a bare-handed grip on an
+    #   energised casualty, so this gate is not deferring the bleed for
+    #   something less urgent - it is removing the thing that makes treating the
+    #   bleed fatal to the person treating it. Like the other two it advances:
+    #   once the contact is broken the bleed is instructed on the next turn,
+    #   asserted in the arrest walk above;
     # - resuscitation, because an arrest with a bleed is a TRAUMATIC arrest, and
     #   the leaf that owns it treats the bleed AND compresses (Blocker 2). A
     #   bare INSTRUCT_CPR appearing here would be exactly that blocker; and
@@ -1139,6 +1788,7 @@ def test_no_reachable_branch_defers_an_established_catastrophic_bleed() -> None:
     permitted = {
         AssessmentStep.ASK_SCENE_SAFE,
         AssessmentStep.INSTRUCT_MAKE_SCENE_SAFE,
+        AssessmentStep.INSTRUCT_BREAK_ELECTRICAL_CONTACT,
         AssessmentStep.INSTRUCT_CPR,
         AssessmentStep.INSTRUCT_RESCUE_BREATHS_THEN_CPR,
         AssessmentStep.ASK_AIRWAY_OBSTRUCTION,
@@ -1195,7 +1845,7 @@ def test_an_established_bleed_precedes_the_responsiveness_and_breathing_gates(
     # executed against the code before the fix and both returned a QUESTION,
     # which is a bystander with their hands off an arterial bleed. Named
     # separately from the walk above so the regression is legible as the
-    # reviewer wrote it, rather than as one row of a 373k-combination sweep.
+    # reviewer wrote it, rather than as one row of a 140k-combination sweep.
     talking_and_bleeding = decide(
         AssessmentInputs(
             scene_safe=SAFE,
@@ -1336,17 +1986,107 @@ def test_the_pulse_report_cannot_change_any_branch() -> None:
     #
     # Asserted by holding every other input fixed and varying only the pulse
     # across all four of its states, over the whole rest of the space.
-    grouped: dict[tuple[object, ...], set[AssessmentStep]] = {}
-    for assignment, branch in ALL_BRANCHES:
-        key = tuple(
-            value for name, value in assignment.items() if name != "pulse"
-        )
-        grouped.setdefault(key, set()).add(branch.step)
+    #
+    # THIS ROW NOW OWNS THE PULSE AXIS OUTRIGHT, and that is a deliberate
+    # transfer rather than a weakening. The main walk used to cross `pulse` into
+    # its product, which multiplied every OTHER safety row's work by four to
+    # re-derive a fact this row establishes directly; when Blocker 3 of the
+    # third clinical review took the scene to five members, that factor of four
+    # was what pushed the walk past ASM-09's bound. So the walk holds `pulse` at
+    # UNKNOWN and this row varies it explicitly - see
+    # `_CROSSED_OUT_OF_THE_WALK`. The assertion is STRONGER than the grouping it
+    # replaces, because it compares each branch against the UNKNOWN-pulse
+    # baseline the rest of the suite actually walks, rather than merely checking
+    # that the four pulse values agree with each other.
+    # THE STRUCTURAL HALF, WHICH IS THE ONE THAT ACTUALLY PROVES IT. `_Consulted`
+    # has no `pulse` accessor, so there is no expression by which any path can
+    # read the field - the guarantee is a property of the reachable API rather
+    # than of the branches that happen to exist today. This is asserted FIRST
+    # because it is what licenses the walk holding `pulse` at UNKNOWN: an
+    # empirical sweep can only say "no current branch reads it", while this says
+    # "no branch can".
+    assert not hasattr(_Consulted, "pulse"), (
+        "`_Consulted` must expose no `pulse` accessor: that absence is what "
+        "makes ASM-12 a fact about the reachable API rather than a rule the "
+        "next author has to remember, and it is what lets the exhaustive walk "
+        "hold the pulse at UNKNOWN without losing coverage"
+    )
+    # And nothing reaches around the accessor either - no `inputs.pulse` or
+    # `_inputs.pulse` read anywhere in the decision path's source.
+    source = Path(inspect.getfile(decide)).read_text(encoding="utf-8")
+    tree = ast.parse(source)
+    reads = [
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Attribute) and node.attr == "pulse"
+    ]
+    assert reads == [], (
+        f"the decision path reads `.pulse` at {len(reads)} site(s); ASM-12 "
+        f"requires the finding be recorded and never branched on"
+    )
 
-    varying = {key: steps for key, steps in grouped.items() if len(steps) > 1}
-    assert not varying, (
-        f"{len(varying)} input combinations changed their branch when only the "
-        f"pulse report changed; first: {next(iter(varying.items()))}"
+    # THE EMPIRICAL HALF, over a bounded cross-section rather than the whole
+    # space. Every pulse value is crossed against every combination of the two
+    # inputs that decide the arrest path - which is where a pulse gate would be
+    # reintroduced, because that is where the published algorithms put one and
+    # where this module's own Blocker 2 found one.
+    checked = 0
+    for responsiveness in (None, *Responsiveness):
+        for breathing in (None, *Breathing):
+            for bleeding in (None, *SevereBleeding):
+                for submersion in (None, True, False):
+                    branches = set()
+                    for value in _INPUT_DOMAINS["pulse"]:
+                        branch = decide(
+                            AssessmentInputs(
+                                scene_safe=SAFE,
+                                responsiveness=(
+                                    Finding.unknown()
+                                    if responsiveness is None
+                                    else established(responsiveness)
+                                ),
+                                breathing=(
+                                    Finding.unknown()
+                                    if breathing is None
+                                    else established(breathing)
+                                ),
+                                severe_bleeding=(
+                                    Finding.unknown()
+                                    if bleeding is None
+                                    else established(bleeding)
+                                ),
+                                submersion=(
+                                    Finding.unknown()
+                                    if submersion is None
+                                    else established(submersion)
+                                ),
+                                pulse=(
+                                    Finding.unknown()
+                                    if value is None
+                                    else established(value)
+                                ),
+                            )
+                        )
+                        branches.add(
+                            (branch.step, branch.criticality, branch.assumed_inputs)
+                        )
+                        # "Recorded for the bridge, never a branch point" has to
+                        # hold of the PROVENANCE too, or a pulse report could
+                        # make a level uncorrectable without changing a step.
+                        assert "pulse" not in branch.assumed_inputs, (
+                            "a path recorded `pulse` as an assumption, so "
+                            "something read it"
+                        )
+                        checked += 1
+                    assert len(branches) == 1, (
+                        f"responsiveness={responsiveness}, "
+                        f"breathing={breathing}, bleeding={bleeding}, "
+                        f"submersion={submersion} changed its branch when only "
+                        f"the pulse report changed: {branches}"
+                    )
+    assert checked > 500, (
+        f"the pulse axis must actually be crossed against the arrest-deciding "
+        f"inputs; only {checked} decisions were made"
     )
 
 
@@ -1536,13 +2276,26 @@ def test_every_branch_from_an_unestablished_input_is_a_question_not_an_instructi
     # recoverable for a category and is not recoverable once it tells a
     # bystander to do something to a patient. ASM-04.
     #
-    # THREE deliberate exceptions, each with its own reason, each listed rather
+    # FIVE deliberate exceptions, each with its own reason, each listed rather
     # than skipped by a blanket `continue` - and each one's own precondition
     # asserted separately below, so "exception" never means "unchecked".
     #
     # INSTRUCT_MAKE_SCENE_SAFE: an unsafe scene DOES produce an instruction,
     # "move to safety", which is safe under both hypotheses by construction
     # because it is addressed to the responder and touches no patient.
+    #
+    # INSTRUCT_BREAK_ELECTRICAL_CONTACT: the same argument as the line above,
+    # and it is the strongest instance of it rather than a fourth exception with
+    # a new rationale. Blocker 3 of the third clinical review. It fires on an
+    # ESTABLISHED in-the-patient hazard with breathing and responsiveness still
+    # unknown, and every physical action it names is addressed to the RESPONDER
+    # and to the electrical supply - throw the breaker, pull the plug, push the
+    # casualty clear with a dry non-conductor, or stay back. It is the one
+    # instruction in the module that explicitly forbids touching the patient, so
+    # "an assumption drove a physical instruction on a patient" is not merely
+    # avoided here, it is the thing the leaf exists to prevent. Safe under every
+    # hypothesis about the airway: isolating a supply harms no breathing state,
+    # and it is the precondition for acting on any of them.
     #
     # INSTRUCT_CONTROL_BLEEDING: Blocker 1's pre-A gate fires on an ESTABLISHED
     # bleed while responsiveness and breathing are still unknown - which is the
@@ -1569,6 +2322,7 @@ def test_every_branch_from_an_unestablished_input_is_a_question_not_an_instructi
     # choker. Its preconditions are asserted below, like the others.
     unestablished_breathing_permitted = {
         AssessmentStep.INSTRUCT_MAKE_SCENE_SAFE,
+        AssessmentStep.INSTRUCT_BREAK_ELECTRICAL_CONTACT,
         AssessmentStep.INSTRUCT_CONTROL_BLEEDING,
         AssessmentStep.INSTRUCT_CLEAR_AIRWAY_OBSTRUCTION,
         AssessmentStep.INSTRUCT_CONTROL_BLEEDING_THEN_CLEAR_AIRWAY_OBSTRUCTION,
@@ -1597,8 +2351,20 @@ def test_every_branch_from_an_unestablished_input_is_a_question_not_an_instructi
                 f"unestablished bleed"
             )
         if branch.step is AssessmentStep.INSTRUCT_MAKE_SCENE_SAFE:
-            assert assignment["scene_safe"] is SceneSafety.UNSAFE, (
-                f"{assignment} instructed a move on an unestablished scene"
+            # Two hazard classes reach the move instruction now - the approach
+            # hazards. The in-the-patient class does NOT, because "move to
+            # safety" is the wrong action for a responder who may already be in
+            # the right place and must not TOUCH.
+            assert assignment["scene_safe"] in (
+                SceneSafety.UNSAFE_ADJACENT,
+                SceneSafety.UNSAFE_CONSUMING,
+            ), f"{assignment} instructed a move on an unestablished scene"
+        if branch.step is AssessmentStep.INSTRUCT_BREAK_ELECTRICAL_CONTACT:
+            assert (
+                assignment["scene_safe"] is SceneSafety.UNSAFE_IN_PATIENT
+            ), (
+                f"{assignment} instructed breaking an electrical contact "
+                f"without an established in-the-patient hazard"
             )
         if branch.step in (
             AssessmentStep.INSTRUCT_CLEAR_AIRWAY_OBSTRUCTION,
@@ -2208,7 +2974,7 @@ def test_the_whole_input_space_decides_well_inside_the_budget() -> None:
 
 
 def test_the_exhaustive_walk_itself_stays_inside_the_suite_budget() -> None:
-    # falsifier: the thing CI actually pays for on every change is the 373k-
+    # falsifier: the thing CI actually pays for on every change is the 140k-
     # combination walk at module import, and NOTHING timed it - so an
     # accidentally-quadratic helper could take the L2 suite past ASM-09's
     # five-second budget and the only signal would be a wall-clock number
@@ -2219,14 +2985,27 @@ def test_the_exhaustive_walk_itself_stays_inside_the_suite_budget() -> None:
     # budget it is checking - about five seconds to prove five seconds - and
     # would measure a second, warmer run rather than the one CI actually pays.
     # 8 s, not 5 s, and the gap is deliberate rather than slack. ASM-09's
-    # budget is for the L2 SUITE, and this walk is the bulk of it at ~3.5 s on
-    # the development machine - so the bound has to leave room for a CI runner
-    # perhaps twice as slow before it starts reporting an infrastructure
-    # difference as a code regression. A threshold set just above the observed
-    # time is a flaky test, and a flaky safety test is one that gets deleted.
-    # What it still catches is what it exists for: an accidentally-quadratic
-    # helper, or a `decide` that grows an expensive call, either of which moves
-    # this by a multiple rather than by a fraction.
+    # budget is for the L2 SUITE, and this walk is the bulk of it - so the bound
+    # has to leave room for a CI runner perhaps twice as slow before it starts
+    # reporting an infrastructure difference as a code regression. A threshold
+    # set just above the observed time is a flaky test, and a flaky safety test
+    # is one that gets deleted. What it still catches is what it exists for: an
+    # accidentally-quadratic helper, or a `decide` that grows an expensive call,
+    # either of which moves this by a multiple rather than by a fraction.
+    #
+    # THIS ROW FIRED FOR REAL, AND IT IS WHY THE WALK IS STRATIFIED. Blocker 3
+    # of the third clinical review took `SceneSafety` from three members to
+    # five, which took the product from 373k to 560k and this measurement from
+    # ~4.9 s to 8.04-8.05 s - FAILING on two runs out of three, exactly the
+    # marginal flakiness the bound was set wide to avoid. The message below
+    # names the two acceptable responses and rules out the third, and the fix
+    # took the first of them: `pulse` is crossed out of the product because no
+    # path can read it (`_CROSSED_OUT_OF_THE_WALK`), which is stratification
+    # rather than sampling - nothing decision-relevant was dropped, and the
+    # walk is 140k combinations at ~1.9 s with every safety row still a
+    # statement about every reachable branch. Raising the bound to 9 s was
+    # considered and rejected: it would have hidden a real 60% regression in
+    # the thing CI pays for, which is the failure mode CLAUDE.md names.
     assert ALL_BRANCHES_SECONDS < 8.0, (
         f"the exhaustive walk over {len(ALL_BRANCHES)} combinations took "
         f"{ALL_BRANCHES_SECONDS:.2f}s at import, which puts the L2 suite over "
@@ -3110,24 +3889,16 @@ def test_the_recorded_gaps_stay_recorded() -> None:
     lowered = " ".join(source.lower().split())
     for owed, why in (
         (
-            "electrocutes the rescuer",
-            "SceneSafety cannot distinguish a hazard you work beside from one "
-            "that is IN the patient; CPR on a patient still in circuit "
-            "electrocutes the rescuer",
-        ),
-        (
             "dose-over-time",
-            "fire and gas are not a two-value verdict",
-        ),
-        (
-            "unreachable by the pinned phrasing",
-            "the committed-unsafe escape hatch is described only behind the "
-            "wall it opens",
+            "fire and gas are still not fully modelled: the class exists and "
+            "gets the right warning, but dose-over-time wants a clock and an "
+            "extraction decision that L2 has no expression for",
         ),
         (
             "tuned out",
-            "`_hazard_suffix` is a constant string appended indefinitely, and "
-            "L2 never holds WHICH hazard it was",
+            "`_hazard_suffix`'s REPETITION half remains a gap - per-class text "
+            "fixes the wrong-warning half and L2 holds no turn history, so "
+            "within a class the sentence is identical on turn twenty",
         ),
         (
             'no "bleeding controlled" input',
@@ -3149,18 +3920,18 @@ def test_the_recorded_gaps_stay_recorded() -> None:
             "tongue into the airway",
             "the named untrained failure mode of a jaw thrust",
         ),
-        # THE THIRD CLINICAL REVIEW'S THREE RECORD-DON'T-FIX FINDINGS.
+        # THE THIRD CLINICAL REVIEW'S RECORD-DON'T-FIX FINDINGS. Its Blocker 3
+        # - the live-electricity re-weighting and the constant hazard string -
+        # is no longer among them: it is FIXED, and the two rows that used to
+        # assert it stays recorded are replaced by
+        # `test_the_recorded_gaps_do_not_still_claim_the_fixed_ones_are_open`
+        # below, which asserts the opposite and would fail if the fix were
+        # reverted without restoring the record.
         (
-            "no longer of equal weight",
-            "the live-electricity gap must be RE-WEIGHTED and not merely "
-            "recorded: it was LATENT while UNSAFE blocked patient contact, and "
-            "Blocker 3(c)'s three-state fix made it REACHABLE to INSTRUCT_CPR",
-        ),
-        (
-            "moves toward you",
-            "`_hazard_suffix`'s constant string describes a hazard that moves "
-            "toward you, not one you are about to put both hands on - so it is "
-            "the wrong warning for a patient still in circuit",
+            "escape hatch is now scoped to adjacent",
+            "the committed escape hatch must be recorded as PER-CLASS, since "
+            "the module's own docstring previously described it as global and "
+            "a reader would otherwise apply it to an energised patient",
         ),
         (
             "relitigate the caller's report",
@@ -3183,6 +3954,47 @@ def test_the_recorded_gaps_stay_recorded() -> None:
         ),
     ):
         assert owed in lowered, f"the module must record: {why}"
+
+
+def test_the_hazard_class_gap_is_recorded_as_closed_and_not_as_open() -> None:
+    # falsifier: the mirror of the row above, and the reason it is a separate
+    # test. The recorded-gaps block keeps describing the live-electricity defect
+    # as an open gap after it has been fixed, so the next author reads a warning
+    # about a reachable electrocution that no longer exists, goes looking for
+    # it, and either "fixes" it a second time or - worse - concludes the gaps
+    # block is stale and stops trusting the rest of it. A gap list that lies in
+    # the safe direction still destroys its own credibility.
+    source = Path(inspect.getfile(decide)).read_text(encoding="utf-8")
+    lowered = " ".join(source.lower().split())
+    # The fix is recorded AS a fix, with the mechanisms named so the next author
+    # can find them rather than rediscovering the shape.
+    for owed, why in (
+        (
+            "the hazard class gap is closed",
+            "the gap must be marked closed where it was recorded, not silently "
+            "deleted - a deleted gap looks like one nobody ever found",
+        ),
+        (
+            "instruct_break_electrical_contact",
+            "and name the mechanism that closes it",
+        ),
+        (
+            "what remains of it, and it is not nothing",
+            "and be honest that two narrower residues remain, rather than "
+            "claiming a clean close",
+        ),
+    ):
+        assert owed in lowered, f"the module must record: {why}"
+
+    # And the claim is not merely prose: the mechanism it names exists and is
+    # reachable. A recorded fix whose mechanism is absent is this repo's
+    # signature failure mode - a mechanism whose only implementation is its own
+    # description - which the third review counted five instances of.
+    reachable = {branch.step for _, branch in ALL_BRANCHES}
+    assert AssessmentStep.INSTRUCT_BREAK_ELECTRICAL_CONTACT in reachable, (
+        "the module records the hazard-class gap as closed by a mechanism that "
+        "no input combination reaches"
+    )
 
 
 def test_choking_is_recorded_as_implemented_rather_than_as_a_gap() -> None:

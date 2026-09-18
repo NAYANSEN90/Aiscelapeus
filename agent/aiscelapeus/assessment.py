@@ -130,47 +130,75 @@ RECORDED GAPS - NOT CLOSED HERE
 The clinical reviews' non-blocking findings, recorded so the next author does
 not rediscover them as surprises. A test asserts each one stays recorded.
 
-- SCENE SAFETY CANNOT DISTINGUISH A HAZARD YOU CAN WORK BESIDE FROM A HAZARD
-  THAT IS IN THE PATIENT. `SceneSafety` collapses to a two-value verdict plus a
-  committed state, and the pinned question already enumerates traffic, fire and
-  electricity - so the information IS collected and then discarded. The three
-  are not the same hazard. LIVE ELECTRICITY makes touching the patient the
-  mechanism of injury: CPR on a patient still in circuit electrocutes the
-  rescuer, so "safe to approach" and "safe to touch the patient" come apart,
-  and this module cannot express the difference. FIRE and GAS are
-  dose-over-time, where the right answer is a clock and an extraction decision
-  rather than a verdict. Closing this means a hazard TYPE on the input and a
-  touch-the-patient gate distinct from the approach gate.
+- THE HAZARD CLASS GAP IS CLOSED, and it is described here rather than deleted
+  outright because the next author needs to know that two of the items that
+  used to sit in this list are now mechanisms above, not gaps. BLOCKER 3 OF THE
+  THIRD CLINICAL REVIEW. `SceneSafety` collapsed every hazard into one UNSAFE
+  value while the pinned question already enumerated traffic, fire and
+  electricity - so the discriminating information was collected and then
+  discarded, the same arity defect the enum was widened to fix, one level down.
+  It was LATENT while UNSAFE blocked patient contact outright and Blocker
+  3(a)'s three-state fix - correct, and required by the absorbing-loop death -
+  made it REACHABLE all the way to INSTRUCT_CPR. Closed by `HazardClass`, by
+  `SceneSafety`'s per-class members, by `INSTRUCT_BREAK_ELECTRICAL_CONTACT`
+  standing in front of every touch instruction, and by `_hazard_suffix` being
+  per-class. The committed escape hatch is now scoped to ADJACENT by the
+  ABSENCE of a member, which is what stops it being re-widened.
 
-  RE-WEIGHTED BY THE THIRD CLINICAL REVIEW, AND IT IS NO LONGER OF EQUAL WEIGHT
-  TO THE `_hazard_suffix` TUNE-OUT GAP BELOW. Stated explicitly because the two
-  sat in the same list at the same weight and they are not comparable any more.
-  The live-electricity gap was LATENT while a `SceneSafety` verdict of UNSAFE
-  blocked patient contact outright: the rescuer never got as far as touching
-  anybody. Blocker 3(c)'s three-state fix - which was correct, and which the
-  absorbing-loop death required - made it REACHABLE, all the way to
-  INSTRUCT_CPR, because `UNSAFE_RESPONDER_COMMITTED` advances the assessment
-  past the gate by design. And `_hazard_suffix`'s constant string is the wrong
-  warning for it: "keep them watching for it... get clear if it closes in"
-  describes a hazard that MOVES TOWARD YOU, like traffic or fire, not one you
-  are about to put both hands on. A responder committed beside a patient still
-  in circuit is told to watch the hazard and start compressions, and the two
-  instructions kill them together. This is now the highest-severity item in this
-  list; the tune-out gap is an attention problem, and this one is a reachable
-  electrocution of the operator.
-- THE COMMITTED-UNSAFE STATE IS UNREACHABLE BY THE PINNED PHRASING. The escape
-  hatch out of the scene gate exists in the type
-  (`UNSAFE_RESPONDER_COMMITTED`) but the only place it is described to the
-  operator is the INSTRUCT_MAKE_SCENE_SAFE rationale - which is behind the wall
-  it opens. The pinned ASK_SCENE_SAFE phrasing asks for a hazard list and where
-  the responder is standing; it does not offer "already beside them and not
-  leaving" as an answer, so the state is reached only if the caller volunteers
-  it unprompted.
-- `_hazard_suffix` IS A CONSTANT STRING APPENDED INDEFINITELY. Identical
-  repetition on every downstream instruction is the definition of an alarm that
-  gets tuned out, and L2 never holds WHICH hazard it was, so the warning cannot
-  name the thing it is warning about. A responder working next to traffic gets
-  the same sentence about an unresolved hazard on turn two and on turn twenty.
+  AND THE FIRST FIX OF IT LEFT THE CONSUMING CLASS DEAD, WHICH AN INDEPENDENT
+  CLINICAL REVIEW OF THIS VERY CHANGE FOUND. `_hazard_suffix` was made
+  per-class and `INSTRUCT_MAKE_SCENE_SAFE` was left with one hazard-agnostic
+  string - and that instruction is the ONLY step a consuming scene reaches, so
+  every word of the fire guidance existed in the module and reached no caller
+  while 96 tests passed. The string it did send offered the committed escape
+  hatch, which `UNSAFE_CONSUMING` has no member to honour, so it invited an
+  answer the machine could only meet by repeating itself: Blocker 3(a)'s
+  absorbing loop rebuilt on fire with an invitation attached. Closed by
+  `_move_to_safety_rationale`, which dispatches on the class exactly as
+  `_hazard_suffix` does, and pinned by BRANCH-LEVEL rows rather than by a
+  direct call to the suffix helper - the direct call is what let dead clinical
+  content pass as tested.
+
+  WHAT REMAINS OF IT, AND IT IS NOT NOTHING. One residue, narrower than the
+  original:
+  - FIRE AND GAS GET THE RIGHT WORDS AND NOT YET THE RIGHT MECHANISM.
+    `HazardClass.CONSUMING` is expressible, and the caller is now told the
+    hazard is a DOSE, that no position beside it stays survivable, and that the
+    priority is getting out to clear air - but dose-over-time really wants a
+    CLOCK and an extraction decision, and L2 has no clock beyond the injected
+    one and no expression for "you have been in there too long". A consuming
+    scene therefore blocks patient contact like any other approach hazard,
+    which is defensible and is not the same as modelling the exposure.
+
+    THE ESCAPE HATCH IS REFUSED FOR IT DELIBERATELY, and that decision is
+    recorded rather than left looking like an oversight, because it is the one
+    place Blocker 3(a)'s absorbing-loop objection has real force and is being
+    overruled on clinical grounds. There is no committed variant of
+    `UNSAFE_CONSUMING`: a responder who will not leave a smoke-filled room is
+    not accepting a survivable risk, they are taking a dose alongside the
+    patient, and the instruction now says so and tells them to get clear and
+    let the fire service reach a patient who cannot be moved. The reviewer
+    accepted the refusal and blocked only on the WORDS, which is what changed.
+- THE COMMITTED-UNSAFE STATE WAS UNREACHABLE BY THE PINNED PHRASING, AND THAT
+  HALF IS NOW FIXED as a side effect of Blocker 3's question rewrite: the
+  ASK_SCENE_SAFE rationale now offers "already beside them and not leaving" as
+  an answer in its own right, so the escape hatch is no longer described only
+  behind the wall it opens. It also now asks the one follow-up that decides the
+  hazard CLASS - whether the patient is still touching the conductor - because
+  a class the question cannot elicit is a class the type holds and never sees.
+  What is NOT fixed is that L2 pins the WORDS and cannot verify L3 asked them;
+  that is the general limit on every pinned phrasing here, not specific to this
+  one.
+- `_hazard_suffix` IS NO LONGER A CONSTANT STRING, AND THE TUNE-OUT PROBLEM IS
+  ONLY HALF CLOSED. It is now per-hazard-class, so the warning is about the
+  hazard the responder actually reported rather than being the wrong warning for
+  two of the three classes - that was the reachable-harm half and it is fixed.
+  The REPETITION half stands: identical repetition is what gets tuned out, and
+  within a class the sentence is still identical on turn two and on turn twenty,
+  because L2 is pure and holds no turn history by construction (ASM-01) so there
+  is no expression for "say it differently this time". Closing the rest needs a
+  turn-aware layer above L2, which is a scoped change somewhere else. This is
+  now an attention problem only, which is what it was always claimed to be.
 - THERE IS NO "BLEEDING CONTROLLED" INPUT. An established PRESENT bleed returns
   INSTRUCT_CONTROL_BLEEDING forever, because nothing can ever report that the
   pressure worked. That is the same absorbing-loop shape the scene-gate fix
@@ -283,6 +311,7 @@ __all__ = [
     "Certainty",
     "Consciousness",
     "Finding",
+    "HazardClass",
     "LETTERS_IN_ORDER",
     "Letter",
     "RESCUE_BREATHS_BEFORE_COMPRESSIONS",
@@ -617,36 +646,141 @@ class SevereBleeding(Enum):
     PRESENT = "present"
 
 
+class HazardClass(Enum):
+    """WHAT KIND of hazard, because the three the question already asks are not
+    alike in the one way that decides whether the patient may be TOUCHED.
+
+    BLOCKER 3 OF THE THIRD CLINICAL REVIEW. The pinned `ASK_SCENE_SAFE` phrasing
+    enumerates traffic, fire and electricity, so the discriminating information
+    was already being collected - and then discarded into a two-value safe/unsafe
+    verdict. That is the same ARITY defect `SceneSafety` was widened to fix, one
+    level down, and the three-state fix is what made it lethal rather than
+    latent: `UNSAFE_RESPONDER_COMMITTED` advances by design, all the way to
+    INSTRUCT_CPR, so a bystander who said "there's a live cable, I'm already next
+    to him" was told to start compressions.
+
+    THE AXIS IS NOT SEVERITY. It is the hazard's RELATIONSHIP TO THE PATIENT,
+    which is what decides whether patient contact is survivable for the
+    responder. Ordering these by how dangerous they feel would be a different
+    axis with no action attached to it, so there is deliberately no ordering
+    here and no comparison operator.
+
+    ADJACENT - a hazard you can work BESIDE. Traffic is the case: probabilistic
+    and EXTERNAL to the patient. A committed rescuer genuinely can work inside
+    it, which is why the escape hatch exists and why "keep watching, get clear
+    if it closes in" is exactly the right warning for it.
+
+    IN_PATIENT - a hazard that is IN THE PATIENT. Live electricity is the case.
+    Touching the patient completes the circuit, so COMPRESSIONS ARE THE
+    MECHANISM OF INJURY: "safe to approach" and "safe to touch" come apart here
+    and nothing in a two-value verdict could express the difference. This is the
+    one class for which the committed escape hatch is WRONG - see
+    `SceneSafety.UNSAFE_IN_PATIENT` for why advancing anyway is not an option
+    here when it is everywhere else.
+
+    CONSUMING - a hazard that is CONSUMING THE SCENE. Fire and gas are
+    dose-over-time rather than probabilistic: "committed" does not mean "working
+    inside an acceptable risk", it means dead in minutes along with the patient.
+    The action is extraction, not a standing warning.
+
+    NO MEMBER MEANS "UNKNOWN", deliberately, and the reasoning is `Breathing`'s
+    verbatim: a sentinel member is an illegal state expressible in the type, and
+    every `match` over it would need a branch for the sentinel that the one
+    forgetting it routes somewhere silently. An unestablished scene is
+    `Finding.unknown()` on `scene_safe`, which is where "we have not asked yet"
+    already lives - and a SAFE scene has no hazard class at all, which is
+    expressed by `SceneSafety.SAFE.hazard` being None rather than by a NONE
+    member here.
+    """
+
+    ADJACENT = "adjacent"
+    IN_PATIENT = "in_patient"
+    CONSUMING = "consuming"
+
+
 class SceneSafety(Enum):
-    """BLOCKER 3(a). Three states, because a bool made the gate absorbing.
+    """BLOCKER 3(a), then BLOCKER 3 OF THE THIRD CLINICAL REVIEW.
 
     The DR gate itself is correct and stays: the bystander is the operator, and
     a rescuer electrocuted across a downed cable produces two dead people rather
     than one. One turn is the right price for that.
 
-    What was wrong was the ARITY. `Finding[bool]` had exactly two answers, and
-    `False` looped forever: a caller already kneeling beside a patient in a
-    lay-by who truthfully answers "no, cars are going past" was told to move to
-    safety and never advanced. The gate then kills the patient it exists to
-    protect, and it does so precisely when the bystander has ALREADY taken the
-    risk and is not going to un-take it.
+    WHAT WAS WRONG THE FIRST TIME WAS THE ARITY. `Finding[bool]` had exactly two
+    answers, and `False` looped forever: a caller already kneeling beside a
+    patient in a lay-by who truthfully answers "no, cars are going past" was
+    told to move to safety and never advanced. The gate then kills the patient
+    it exists to protect, and it does so precisely when the bystander has
+    ALREADY taken the risk and is not going to un-take it.
 
-    So the third state is not "unsafe, but carry on anyway" as a permission - it
-    is the distinct, real situation a dispatcher meets constantly: the hazard
-    persists AND the responder is already committed to the position. That
-    advances, carrying a live warning rather than a blocking loop. The reasoning
-    is `Breathing`'s: a two-member type forced a clinical middle case into the
-    wrong one of two boxes.
+    So the committed state is not "unsafe, but carry on anyway" as a permission
+    - it is the distinct, real situation a dispatcher meets constantly: the
+    hazard persists AND the responder is already committed to the position. That
+    advances, carrying a live warning rather than a blocking loop.
 
-    A bool plus a separate `committed` flag was rejected. It makes
-    `(safe=True, committed=True)` expressible and meaningless, and every reader
-    of the pair has to rediscover which combinations are real.
+    AND WHAT WAS WRONG THE SECOND TIME WAS THE ARITY AGAIN, ONE LEVEL DOWN. One
+    `UNSAFE` value covered every hazard class, and the classes are not alike in
+    the way that matters: traffic is external and survivable to work beside,
+    live electricity is IN THE PATIENT so compressions are the mechanism of
+    injury, and fire is dose-over-time. See `HazardClass`. The fix pairs the
+    verdict with the class in ONE value rather than adding a second field.
+
+    WHY THE CLASS IS A REFINEMENT OF THE VERDICT AND NOT AN ORTHOGONAL INPUT,
+    which is the shape decision and is load-bearing twice over:
+
+    - IT KEEPS ILLEGAL STATES UNREPRESENTABLE. A separate
+      `Finding[HazardClass]` field makes `SAFE` with a live cable expressible
+      and meaningless, and `UNSAFE` with no class expressible and undecidable -
+      which is the "bool plus a separate `committed` flag" shape this docstring
+      already records as rejected, rebuilt on the hazard instead of on the
+      commitment. The class exists only WHERE a hazard exists, so it belongs
+      inside the value that says a hazard exists.
+    - IT KEEPS THE ASM-09 WALK AFFORDABLE, and that is a measured constraint
+      rather than a preference. The exhaustive walk is the product of the input
+      domains: a new field multiplies it, an extra member on an existing field
+      adds one slice. Measured on the development machine - a separate
+      three-class field took 373k combinations to 1.12M and the walk from 4.9 s
+      to ~14.7 s against ASM-09's 8.0 s bound, while these two extra members
+      take it to 560k and ~7.4 s. A correctness fix that forces the safety walk
+      to be sampled would trade this defect for a worse one.
+
+    THE COMMITTED ESCAPE HATCH IS PER-CLASS, NOT GLOBAL, and that asymmetry is
+    the clinical content of this change. It exists for ADJACENT and for nothing
+    else. There is therefore no `UNSAFE_IN_PATIENT_COMMITTED` member and no
+    `UNSAFE_CONSUMING_COMMITTED` member: "the responder is already beside them
+    and staying" is a reason to ADVANCE past traffic and is not a reason to put
+    hands on an energised patient, and an absent member is how that is made
+    unrepresentable rather than merely unrecommended.
     """
 
     SAFE = "safe"
-    UNSAFE = "unsafe"
-    #: Hazard present, responder already at the patient's side and staying.
-    UNSAFE_RESPONDER_COMMITTED = "unsafe_responder_committed"
+    #: Traffic and the like: external, probabilistic, survivable to work beside.
+    #: Blocks the approach, because the responder is not yet committed.
+    UNSAFE_ADJACENT = "unsafe_adjacent"
+    #: The Blocker 3(a) escape hatch, now scoped to the ONE class it is right
+    #: for: hazard present, responder already at the patient's side and staying.
+    UNSAFE_ADJACENT_COMMITTED = "unsafe_adjacent_committed"
+    #: THE HAZARD IS IN THE PATIENT - a live conductor still in contact. This
+    #: state has NO committed variant, and that absence is the fix. Advancing
+    #: would mean compressions on a patient in circuit, which electrocutes the
+    #: responder: the DR gate's own founding case, reached THROUGH the gate.
+    #: `INSTRUCT_BREAK_ELECTRICAL_CONTACT` is what this reaches instead.
+    UNSAFE_IN_PATIENT = "unsafe_in_patient"
+    #: Fire, smoke, gas: dose-over-time, so there is no dose at which standing
+    #: beside it is a stable position. No committed variant either - "committed"
+    #: here means dying alongside the patient rather than accepting a risk.
+    UNSAFE_CONSUMING = "unsafe_consuming"
+
+    @property
+    def hazard(self) -> HazardClass | None:
+        """Which class of hazard this scene holds, or None for a safe scene.
+
+        Returning None for SAFE rather than adding a `HazardClass.NONE` member
+        is the same decision `Finding` makes for an unestablished value, and for
+        the same reason: a NONE member would be a branch every match has to
+        remember, and the one that forgets routes a safe scene through hazard
+        handling.
+        """
+        return _HAZARD_CLASS_OF[self]
 
     @property
     def blocks_patient_contact(self) -> bool:
@@ -655,18 +789,64 @@ class SceneSafety(Enum):
         A property of the value rather than a condition callers write, for the
         same reason as `Breathing.routes_to_cpr`: `if scene is SceneSafety.SAFE`
         written at a call site is the two-state reading restored underneath the
-        three-state type, and there is nowhere for that expression to be correct.
+        richer type, and there is nowhere for that expression to be correct.
+
+        TRUE FOR THREE OF THE FIVE MEMBERS NOW, and the two it is false for are
+        the two where patient contact is actually survivable: a safe scene, and
+        a responder already committed beside an ADJACENT hazard. In particular
+        it is TRUE for `UNSAFE_IN_PATIENT` with no committed escape, which is
+        Blocker 3 of the third clinical review: the responder may be standing
+        right there and it is still not safe to TOUCH, because the touching is
+        what injures them.
         """
-        return self is SceneSafety.UNSAFE
+        return self is not SceneSafety.SAFE and not self.responder_committed
+
+    @property
+    def responder_committed(self) -> bool:
+        """Whether the responder is already at the patient's side and staying.
+
+        One member, but read through a property so the escape hatch is a
+        question asked of the value rather than a member name matched at a call
+        site - which is what stops a future author extending the hatch to
+        another class by widening an `in (...)` test somewhere downstream.
+        """
+        return self is SceneSafety.UNSAFE_ADJACENT_COMMITTED
 
     @property
     def hazard_persists(self) -> bool:
         """Whether a hazard is live and must be restated with every instruction.
 
-        True for the committed state: advancing is not the same as the hazard
+        True for every non-safe state: advancing is not the same as the hazard
         being gone, and the branch that advances has to say so.
         """
         return self is not SceneSafety.SAFE
+
+    @property
+    def is_in_the_patient(self) -> bool:
+        """Whether touching the patient is itself the mechanism of injury.
+
+        The single question the rest of the module asks about a hazard class,
+        named once here rather than compared against `HazardClass.IN_PATIENT` at
+        each site. A call site writing that comparison is how the next hazard
+        class with the same property - a patient in a confined space full of
+        slurry gas, a patient under a live rail - gets classified by one
+        function's memory of the enum instead of by the type.
+        """
+        return self.hazard is HazardClass.IN_PATIENT
+
+
+#: Which hazard class each scene verdict carries. A mapping rather than a method
+#: body full of comparisons, and exhaustive by construction: a member added to
+#: `SceneSafety` without a class here raises a KeyError the first time `hazard`
+#: is read on it, which the exhaustive walk reaches immediately. A `match` with a
+#: fallback arm would silently classify a new member as safe instead.
+_HAZARD_CLASS_OF: Mapping[SceneSafety, HazardClass | None] = {
+    SceneSafety.SAFE: None,
+    SceneSafety.UNSAFE_ADJACENT: HazardClass.ADJACENT,
+    SceneSafety.UNSAFE_ADJACENT_COMMITTED: HazardClass.ADJACENT,
+    SceneSafety.UNSAFE_IN_PATIENT: HazardClass.IN_PATIENT,
+    SceneSafety.UNSAFE_CONSUMING: HazardClass.CONSUMING,
+}
 
 
 class SpinalRisk(Enum):
@@ -870,6 +1050,12 @@ class AssessmentStep(Enum):
 
     # Deliver an instruction.
     INSTRUCT_MAKE_SCENE_SAFE = "instruct_make_scene_safe"
+    #: BLOCKER 3 OF THE THIRD CLINICAL REVIEW. The hazard is IN THE PATIENT, so
+    #: the action is to break the contact or isolate the supply BEFORE any
+    #: touch. Distinct from INSTRUCT_MAKE_SCENE_SAFE because the action is
+    #: different in kind: that one says move AWAY, this one says the responder
+    #: may well be in the right place and must not make CONTACT yet.
+    INSTRUCT_BREAK_ELECTRICAL_CONTACT = "instruct_break_electrical_contact"
     INSTRUCT_CPR = "instruct_cpr"
     INSTRUCT_RESCUE_BREATHS_THEN_CPR = "instruct_rescue_breaths_then_cpr"
     #: BLOCKER 2. Haemorrhage control AND compressions, in one instruction.
@@ -1335,23 +1521,111 @@ def _decide(path: _Consulted) -> AssessmentBranch:
             "the first. Ask it as a CLOSED HAZARD LIST answerable yes or no - "
             "traffic, fire, electricity - and about where the responder is "
             "standing right now. Never the open form 'is the scene safe?', "
-            "which is answered with a freeze or a reflexive yes.",
+            "which is answered with a freeze or a reflexive yes. THEN ASK THE "
+            "ONE THING THAT DECIDES WHETHER THE PATIENT MAY BE TOUCHED AT ALL: "
+            "if they named electricity, ask whether the patient is still "
+            "TOUCHING the cable, the rail or the machine, because a hazard "
+            "that is IN the patient makes touching them the injury and it is "
+            "handled differently from one they are merely standing near. Offer "
+            "'already beside them and not leaving' as an answer in its own "
+            "right, because a committed responder is a real answer and not a "
+            "refusal.",
             assumed=path.assumed,
         )
 
     scene = path.scene_safe.value
     assert scene is not None  # narrowed by is_established above
 
+    # BLOCKER 3 OF THE THIRD CLINICAL REVIEW. THE HAZARD IS IN THE PATIENT.
+    #
+    # Checked BEFORE the generic move-to-safety gate, because it is not the same
+    # instruction: that one says move AWAY from a hazard the responder is
+    # standing near, and this one says the responder may be in exactly the right
+    # place and must not make CONTACT until the circuit is broken. Told to "move
+    # to safety" instead, a bystander already at the patient's side reads it as
+    # advice they have already declined and does the thing they came to do.
+    #
+    # WHY THIS IS NOT A WARNING ON THE COMPRESSIONS INSTRUCTION. Reproduced
+    # before the fix: UNSAFE_RESPONDER_COMMITTED + UNRESPONSIVE + breathing NONE
+    # returned INSTRUCT_CPR at CRITICAL, with a `_hazard_suffix` that spoke of
+    # watching the hazard and getting clear "if it closes in" and never
+    # mentioned TOUCHING the patient. Compressions on a patient still in circuit
+    # ARE the mechanism of injury, so a warning attached to that instruction is a
+    # caveat on an action that must not happen yet. Two casualties instead of
+    # one, which is the exact outcome the DR gate exists to prevent - reached
+    # THROUGH the gate.
+    #
+    # AND THIS IS THE ONE PLACE THE COMMITTED ESCAPE HATCH MUST NOT APPLY.
+    # Blocker 3(a)'s escape is right and stays right for traffic: the absorbing
+    # loop killed the patient it protected, and a responder who has taken a
+    # probabilistic external risk will not un-take it. That argument turns on
+    # the hazard being survivable to work beside, and it does not transfer here -
+    # "advance anyway" on an energised patient does not accept a risk to the
+    # responder, it transfers the arrest to them, and then nobody is compressing
+    # anybody. The type is what enforces it: there is no
+    # UNSAFE_IN_PATIENT_COMMITTED member to reach this from, so the exception
+    # cannot be reintroduced by a condition downstream.
+    #
+    # `_gate_floor`, shared with both other pre-A gates. Blocker 3(b) is that a
+    # gate must not LOWER the criticality of a known arrest, and the Blocker 1
+    # hoist reintroduced it verbatim later - so a third gate written with a
+    # pinned SEVERE would be the third instance of one defect. The step is this
+    # gate's; the category is not this gate's to cap, and an arrest behind a live
+    # conductor is still an arrest.
+    if scene.is_in_the_patient:
+        return _branch(
+            AssessmentStep.INSTRUCT_BREAK_ELECTRICAL_CONTACT,
+            Letter.A,
+            _gate_floor(path),
+            "THE HAZARD IS IN THE PATIENT: they are still in contact with a "
+            "live conductor, so TOUCHING THEM COMPLETES THE CIRCUIT and chest "
+            "compressions would be the mechanism of injury rather than the "
+            "treatment. DO NOT TOUCH THE PATIENT YET - not to check them, not "
+            "to start compressions - however close the responder already is. "
+            "This is the one hazard where being committed beside the patient "
+            "does not mean carrying on. BREAK THE CONTACT FIRST, and there are "
+            "four ways in falling order of preference. IF THE PATIENT IS "
+            "AWAKE, SHOUT AT THEM TO LET GO AND GET CLEAR FIRST - it costs "
+            "nothing and risks nobody - but do NOT read a failure to obey as "
+            "unconsciousness or as refusal: a current across the hand clamps "
+            "the grip shut, so somebody who is fully awake often CANNOT let go "
+            "of what is electrocuting them, and telling them again will not "
+            "change it. Then switch the supply off at the plug, the breaker or "
+            "the isolator if it can be reached. If it is a cable, a rail or "
+            "overhead lines, that is not a switch anybody at the scene can "
+            "throw: TELL THE EMERGENCY SERVICES NOW AND SAY IT IS AN "
+            "ELECTRICAL INCIDENT, so the network operator or the railway can "
+            "isolate the supply and confirm it dead - that call IS the "
+            "intervention for this one, not a formality alongside it. Or, ONLY "
+            "for ordinary household voltage and only if the responder is "
+            "standing on something dry and insulating, push the casualty or "
+            "the cable clear with something dry and non-conducting - a wooden "
+            "broom handle, a plastic chair - never a bare hand and never "
+            "anything metal or damp. IF THERE IS WATER AT THIS SCENE, TREAT "
+            "THE WHOLE WET AREA AS LIVE and do not step into it or reach "
+            "across it: water carries the current out to whoever is standing "
+            "in it, so the push-clear method is OFF unless the responder is "
+            "out of the wet and on something dry, and isolating the supply is "
+            "the only thing that makes the area safe. IF NONE OF THAT IS "
+            "POSSIBLE, SAY SO PLAINLY AND DO NOT IMPROVISE: for high voltage, "
+            "overhead lines or a rail, stay well "
+            "back - the ground itself can be live several metres out - and "
+            "wait for the supply to be confirmed dead, because a rescuer down "
+            "beside the patient means nobody is resuscitating anybody. THE "
+            "MOMENT THE CONTACT IS BROKEN OR THE SUPPLY IS OFF, SAY SO: this "
+            "patient is then an ordinary arrest and compressions start "
+            "immediately, and electrical arrest is one of the most survivable "
+            "kinds there is."
+            + _hazard_suffix(scene),
+            assumed=path.assumed,
+        )
+
     if scene.blocks_patient_contact:
         return _branch(
             AssessmentStep.INSTRUCT_MAKE_SCENE_SAFE,
             Letter.A,
             _gate_floor(path),
-            "The scene is unsafe and the responder is not yet committed to the "
-            "patient's side. Move to safety before any patient contact. If "
-            "they are ALREADY beside the patient and will not leave, that is a "
-            "different answer and the assessment continues with a standing "
-            "hazard warning.",
+            _move_to_safety_rationale(scene),
         )
 
     # BLOCKER 1. CATASTROPHIC HAEMORRHAGE, HOISTED TO PRE-A. C-ABC / MARCH.
@@ -2348,13 +2622,148 @@ def _hazard_suffix(scene: SceneSafety) -> str:
     later.
 
     Empty for a safe scene, so the common path carries no noise.
+
+    BLOCKER 3 OF THE THIRD CLINICAL REVIEW: IT USED TO BE ONE CONSTANT STRING,
+    AND THAT WAS WRONG IN TWO SEPARATE WAYS.
+
+    WRONG IN CONTENT, which was the reachable harm. The constant said "keep them
+    watching for it... get clear if it closes in" - a description of a hazard
+    that MOVES TOWARD YOU. That is true of traffic and of fire and it is the
+    opposite of the truth for a hazard that is in the patient, where nothing
+    closes in and the danger is the contact the responder is about to make.
+    Watching a cable does not help. This is now per-class, so each class gets a
+    warning that is true of it, and `HazardClass` is what makes that expressible
+    at all - the recorded gap said "L2 never holds WHICH hazard it was", and it
+    does now, so that half of the gap is closed rather than re-recorded.
+
+    WRONG IN FORM, which is the tune-out problem and is the half this addresses
+    only partly - stated plainly rather than claimed as closed. Identical
+    repetition on every downstream instruction is the definition of an alarm
+    that gets tuned out, and per-class text does not fix repetition: a responder
+    working beside traffic still gets the same adjacent-class sentence on turn
+    two and on turn twenty, because L2 is pure and holds no turn history by
+    construction (ASM-01), so there is no expression here for "say it
+    differently the fourth time". What this change does deliver is that the
+    sentence is ABOUT the hazard the responder actually reported, which is the
+    difference between an alarm that is merely repetitive and one that is also
+    irrelevant. The remaining half stays a recorded gap, re-weighted, and it
+    needs a turn-aware layer that L2 is not.
+
+    THE IN_PATIENT ARM IS DEFENCE-IN-DEPTH, NOT A LIVE DISCRIMINATOR, and it is
+    recorded as such because a reader would otherwise take it for one. The
+    in-the-patient gate returns before any instruction that touches the patient
+    can be reached, so the only leaf that calls this with an IN_PATIENT scene is
+    that gate's own. It is written anyway: a future routing change that let an
+    in-the-patient scene reach a touch instruction would otherwise attach a
+    traffic warning to compressions on an energised patient, which is precisely
+    the defect this blocker is.
     """
-    if not scene.hazard_persists:
+    hazard = scene.hazard
+    if hazard is None:
         return ""
+    if hazard is HazardClass.IN_PATIENT:
+        return (
+            " THE HAZARD IS STILL IN THE PATIENT and nothing here is safe to do "
+            "by hand until that changes: the danger is the CONTACT, not "
+            "something approaching, so there is nothing useful to watch for and "
+            "moving back is not the answer either. Restate that the supply must "
+            "be off or the contact broken first, and ask them to say the moment "
+            "it is."
+        )
+    if hazard is HazardClass.CONSUMING:
+        return (
+            " THE FIRE OR GAS AT THIS SCENE IS STILL BURNING AND HAS NOT BEEN "
+            "RESOLVED, and this hazard gets worse with every second of exposure "
+            "rather than staying the same: smoke and gas are a dose, so there "
+            "is no position beside it that stays survivable. Restate it, and "
+            "tell them the priority is getting the patient and themselves OUT "
+            "to clear air - treatment continues there, not here."
+        )
     return (
         " The hazard reported at this scene has NOT been resolved and the "
         "responder is working inside it: restate it, keep them watching for it, "
         "and tell them to get clear if it closes in."
+    )
+
+
+def _move_to_safety_rationale(scene: SceneSafety) -> str:
+    """The move-to-safety instruction, per hazard class.
+
+    FOUND BY THE INDEPENDENT CLINICAL REVIEW OF BLOCKER 3'S OWN FIX, and it is
+    the same defect Blocker 3 was - fixed for one hazard class and left open on
+    another, which is why it is worth recording rather than quietly patching.
+
+    `_hazard_suffix` was made per-class, and `INSTRUCT_MAKE_SCENE_SAFE` was left
+    with one constant string because that leaf deliberately carries no suffix -
+    the reasoning being that the move-to-safety instruction IS the hazard
+    warning. EXECUTION FALSIFIED THAT: the string named no hazard at all, so a
+    caller in a smoke-filled room and a caller beside traffic were read
+    byte-identical words, and every word of the CONSUMING class's clinical
+    content - dose-over-time, no survivable standing position, get out to clear
+    air - existed in `_hazard_suffix` and reached no caller, because the only
+    step a consuming scene reaches is this one. Dead clinical content behind 96
+    passing tests, which is this project's signature failure mode.
+
+    AND THE CONSTANT STRING ACTIVELY INVITED AN ANSWER THE TYPE REFUSES. It
+    offered "if they are ALREADY beside the patient and will not leave, that is
+    a different answer and the assessment continues" - true for ADJACENT, which
+    has a committed member, and false for CONSUMING and IN_PATIENT, which
+    deliberately do not. So a fire caller was invited to say "I'm not leaving
+    him" and the module had nothing to do with the answer but repeat itself.
+    That is Blocker 3(a)'s absorbing loop rebuilt on fire with an invitation
+    attached, so the escape is now offered only by the class that can honour it.
+
+    Dispatches on `scene.hazard` like `_hazard_suffix`, so there is no new field
+    and no extra slice on the ASM-09 walk. `IN_PATIENT` never reaches this leaf
+    - the in-the-patient gate returns first - so its arm is defence-in-depth for
+    the same reason `_hazard_suffix`'s is, and is written rather than omitted so
+    a future routing change cannot hand an energised patient the traffic words.
+
+    TWO PER-CLASS STRING TABLES, DELIBERATELY, AND THE DRY QUESTION WAS ASKED.
+    An independent review noted that this and `_hazard_suffix` both dispatch on
+    `scene.hazard` and both say something about each class, so a future clinical
+    correction to "what fire requires" has two homes. They are kept separate
+    because they are answers to two different questions and merging them would
+    need a `context` parameter selecting which half to return, which is one
+    function pretending to be two. This one is the INSTRUCTION for a responder
+    who has not yet committed - what to DO about the hazard. `_hazard_suffix` is
+    the standing REMINDER appended to instructions about the PATIENT, for a
+    responder who has advanced past the hazard. A rule that belongs to both -
+    which class is which, and whether a class may be advanced past - lives in
+    `HazardClass` and `SceneSafety` and is consulted by both, so the part that
+    is genuinely one rule does have one home.
+    """
+    hazard = scene.hazard
+    if hazard is HazardClass.CONSUMING:
+        return (
+            "There is FIRE, SMOKE OR GAS at this scene and the responder is "
+            "not yet committed to the patient's side. GET OUT, AND TAKE THE "
+            "PATIENT IF THEY CAN BE MOVED - this hazard is not a risk that "
+            "stays the same while you work, it is a DOSE that gets worse every "
+            "second, so there is no position beside it that stays survivable "
+            "and no amount of care that makes staying safe. Smoke kills far "
+            "more people than flame does. Do not go in, and do not go back in "
+            "for anything. Get to clear air, well away and upwind, and "
+            "treatment continues there rather than here - being out is the "
+            "treatment for now. If the patient cannot be moved, do NOT stay "
+            "with them: say so, get clear, and let the fire service reach "
+            "them, because two casualties in the smoke is how both die."
+        )
+    if hazard is HazardClass.IN_PATIENT:
+        # Defence-in-depth: the in-the-patient gate returns before this leaf is
+        # reachable. Written so a future routing change cannot fall through to
+        # the traffic words on a patient who is still in circuit.
+        return (
+            "The hazard is IN THE PATIENT and the contact has not been broken. "
+            "Do not make contact with them, and do not move them by hand. The "
+            "supply has to be off or the contact broken first."
+        )
+    return (
+        "The scene is unsafe and the responder is not yet committed to the "
+        "patient's side. Move to safety before any patient contact. If "
+        "they are ALREADY beside the patient and will not leave, that is a "
+        "different answer and the assessment continues with a standing "
+        "hazard warning."
     )
 
 
