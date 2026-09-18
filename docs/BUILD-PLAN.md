@@ -286,6 +286,32 @@ bundled. Each was fixed, independently reviewed, and each review found a defect 
 rephrasing. Assert the *property* — no body part named, no elevation expressed, no protocol
 named whose action is the harm; no referent pointing at the caller's report.
 
+### L3 — the missing translation layer, and why L2 cannot be wired yet
+
+**Established by execution, 18 Sept, before dispatching any wiring work.** L2 is complete,
+reviewed through three clinical rounds plus three follow-ups, and **imported by nothing** —
+zero importers in `aiscelapeus/`. Wiring it is not plumbing; there is nothing to wire it *to*.
+
+| L2 needs | The agent layer has |
+|---|---|
+| Ten **typed clinical findings** — `SceneSafety`, `Responsiveness`, three-state `Breathing`, `SevereBleeding`, `AirwayObstruction`, `SpinalRisk`, `AgeBand`, … | `record_finding(kind: str, detail: str)` — **free text in the responder's own words** |
+| Each wrapped in a `Finding` carrying a **`Certainty`** | A four-value `kind` vocabulary (`vital` / `intervention` / `observation` / `symptom`) that **does not overlap L2's inputs at all** |
+
+Verified: only `assessment.py` constructs those types, and `prompts.py` never mentions L2's
+input vocabulary.
+
+**So the gap is a translation layer from free-text findings to typed clinical inputs — and
+that layer is exactly where `Certainty` gets assigned**: did the responder *observe* this,
+*infer* it, or is the agent *assuming the worst*? That is L3's job under §5's asymmetric
+boundary — *the agent may resolve uncertainty about inputs, never about outputs* — and it is
+where the model can do real damage, because a wrong `Certainty` inverts ASM-14's
+correctability and welds an assumption-driven level that a clinician then cannot correct.
+
+**Consequence for sequencing.** B5's harness goes first: it can drive L2 and the
+triage/escalation/gate stack from typed scenario data with **no model and no network**, which
+is what makes DESIGN.md §8's BUILT rows evidenced rather than asserted — and it does not wait
+on L3 existing.
+
 ### Remaining L2 gaps — recorded, not blocking
 
 | Item | Note |
