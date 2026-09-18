@@ -4115,20 +4115,784 @@ def test_the_distress_leaf_states_no_positioning_imperative_it_cannot_justify(
     # to retrieval at 64% top-1 is the Blocker 4 failure mode.
     assert "position they can breathe in" in lowered
     assert "lean forward" in lowered or "leaning forward" in lowered
-    # And the corpus rule's real content is restored in the form that holds for
-    # every presentation here: the danger is being UP once they go shocky.
+    # And the deterioration trigger is still named, because the moment a
+    # conscious patient goes shocky is the moment a bystander reaches for them.
+    # What the rule may DO about it is asserted structurally in the rows below.
     for marker in ("pale", "grey", "clammy", "faint"):
         assert marker in lowered, (
-            f"the deterioration-to-shock rule must name {marker}; it is what "
-            f"the corpus's flat-with-legs-raised rule actually protects against"
+            f"the deterioration rule must name {marker}; it is the moment a "
+            f"bystander's instinct is to pick the patient up"
         )
-    assert "raise their legs" in lowered, (
-        "and must give the corpus's action for that state"
+    # The per-condition detail is deferred to the document that owns it - and
+    # that deferral is now STRUCTURAL rather than spoken. Round 2's version of
+    # this row asserted the word "protocol" appeared in the rationale, which an
+    # independent review of Blocker 5's fix judged a defect in its own right:
+    # "the per-condition positioning belongs to the protocol for what is
+    # actually causing this" is machine bookkeeping read aloud to a bystander at
+    # 3am who has not been told there is a protocol and cannot act on the
+    # sentence. The deferral is real because this leaf commands no position -
+    # which is what `test_the_deterioration_rule_commands_no_destination_posture`
+    # asserts - so saying so out loud buys nothing and costs a clause in front
+    # of the adrenaline.
+    assert "protocol" not in lowered, (
+        "the deferral is structural - this leaf commands no position - so "
+        "narrating it to the caller spends the golden window on the machine's "
+        "own architecture"
     )
-    # The per-condition detail is deferred to the document that owns it.
-    assert "protocol" in lowered, (
-        "positioning detail beyond the shared rule belongs to the cited "
-        "protocol, which is where the per-condition wording lives"
+
+
+# ---------- BLOCKER 5 OF THE THIRD CLINICAL REVIEW: the deterioration rule
+
+
+#: The distress leaf, reached through `decide` on complete inputs. Every row
+#: below needs it and none of them is about how to get there.
+#:
+#: BUILT AS A FUNCTION RATHER THAN A CONSTANT because the rows assert on a
+#: BRANCH, and Blocker 3 of this review is what that is for: 98 tests passed
+#: over dead clinical guidance because a test called a clause helper directly
+#: while the only step a real scene reached never used it. Nothing below may
+#: reach into `_deterioration_clause`-shaped internals; there is no such helper
+#: and there must not be one that these rows could be satisfied by.
+def _distress_leaf() -> AssessmentBranch:
+    """The awake-and-breathing-badly leaf: asthma, anaphylaxis, oedema, stab."""
+    return decide(
+        AssessmentInputs(
+            scene_safe=SAFE,
+            responsiveness=established(Responsiveness.ALERT),
+            breathing=established(Breathing.ABNORMAL_OR_GASPING),
+            airway_obstruction=NO_OBSTRUCTION,
+            severe_bleeding=established(SevereBleeding.NONE),
+        )
+    )
+
+
+#: Every way this module could name a DESTINATION posture for the patient - a
+#: place a responder would put them - as opposed to a posture change it
+#: prohibits or a position the patient chose themselves.
+#:
+#: NOT a banned-phrase list, and the difference is the point. Blocker 4 of the
+#: second round was defeated by a reviewer who rephrased around a phrase list
+#: while keeping every required substring, and passed all 100 tests. The row
+#: below does not ask whether particular bad sentences are absent; it asks
+#: whether the leaf ISSUES a destination posture anywhere, measured over this
+#: vocabulary and with the prohibitions subtracted structurally rather than by
+#: leaving the dangerous phrases off the list. "sit them up" and "stand them
+#: up" are deliberately IN here even though the leaf must contain both, because
+#: it must contain them only as prohibitions - and a list that dropped them to
+#: stay green would be a list that could no longer see the harm being
+#: reintroduced as a command.
+_POSTURE_DESTINATIONS: tuple[str, ...] = (
+    "raise their legs",
+    "raise the legs",
+    "raising their legs",
+    "legs raised",
+    "raise his legs",
+    "elevate their legs",
+    "lay them flat",
+    "lie them flat",
+    "laying them flat",
+    "lay them down",
+    "lower them",
+    "flat on their back",
+    "supine",
+    "recline",
+    "sit them up",
+    "sit them upright",
+    "sitting them up",
+    "stand them up",
+    "move them",
+    "reposition",
+)
+
+#: The prefixes that turn a destination phrase into a PROHIBITION of it. The row
+#: below strips a window of this length before each destination hit and checks
+#: whether one of these closes it, which is what lets the same vocabulary
+#: measure both "the leaf may not command this" and "the leaf must forbid it".
+_PROHIBITION_PREFIXES: tuple[str, ...] = (
+    "do not ",
+    "don't ",
+    "never ",
+    "do NOT ".lower(),
+)
+
+
+#: Where this leaf's authority over posture ENDS, and the reason the row below
+#: is scoped rather than applied to the whole rationale.
+#:
+#: The deterioration rule governs a patient who is STILL CONSCIOUS. Once they
+#: stop responding they are an arrest, this leaf hands over, and the instruction
+#: that takes over MUST command supine - compressions need a firm flat surface
+#: and that is true of all four presentations. So "lower them down and start
+#: chest compressions" is a correct destination posture and the only one this
+#: leaf may issue.
+#:
+#: SCOPED BY THE TRANSITION IT ALREADY OWNS rather than by excusing the phrase.
+#: Carving "lower them down" out of `_POSTURE_DESTINATIONS` would have been the
+#: easy fix and would have blinded the row to the deleted rule's own "lower them
+#: back down and raise their legs". Splitting on the handover instead means the
+#: vocabulary stays complete on both sides, and a command that migrated into the
+#: arrest clause to escape the rule would fail
+#: `test_the_arrest_transition_marker_is_where_this_leaf_hands_over`.
+_ARREST_HANDOVER_MARKER = "that is a different emergency"
+
+
+def _conscious_patient_guidance(rationale: str) -> str:
+    """The part of the leaf that governs a patient who is still responding."""
+    lowered = rationale.lower()
+    handover = lowered.find(_ARREST_HANDOVER_MARKER)
+    return lowered if handover == -1 else lowered[:handover]
+
+
+def _commanded_postures(rationale: str) -> list[str]:
+    """Destination postures the rationale ISSUES rather than prohibits.
+
+    Every occurrence of every phrase in `_POSTURE_DESTINATIONS` is located, and
+    an occurrence is discounted only when a prohibition prefix appears in the
+    clause immediately before it - bounded by the nearest preceding clause
+    break, so a "do not" three sentences earlier cannot launder a command.
+    """
+    lowered = rationale.lower()
+    commanded: list[str] = []
+    for phrase in _POSTURE_DESTINATIONS:
+        start = lowered.find(phrase)
+        while start != -1:
+            # The clause this occurrence sits in: back to the nearest break.
+            clause_start = max(
+                lowered.rfind(mark, 0, start) for mark in (".", ",", ";", ":", "-")
+            )
+            clause = lowered[clause_start + 1 : start]
+            if not any(prefix in clause for prefix in _PROHIBITION_PREFIXES):
+                commanded.append(phrase)
+                break
+            start = lowered.find(phrase, start + 1)
+    return commanded
+
+
+#: The body parts a positioning command has to name, and the reason this row is
+#: a property rather than one more phrase.
+#:
+#: A VOCABULARY LIST WAS DEFEATED HERE, BY THIS AUTHOR, DURING MUTATION TESTING.
+#: `_POSTURE_DESTINATIONS` below catches "raise their legs" and every rephrasing
+#: of it that says "legs" - and a mutant reading "getting their feet up onto a
+#: bag or a step, with the shoulders settled back, helps the blood get back to
+#: the heart" passed all 107 tests. It is the full harm: elevated feet and a
+#: reclined trunk raise venous return into the failing left ventricle exactly as
+#: the deleted sentence did, and it names no banned phrase because it says
+#: "feet" instead of "legs" and asserts a benefit instead of issuing a command.
+#: That is Blocker 4 of the second round repeating itself one level down, which
+#: is why the answer is not another entry in the list.
+#:
+#: THE PROPERTY INSTEAD. This leaf defers positioning to the protocol, so in the
+#: guidance it gives a still-conscious patient it has NO legitimate reason to
+#: name a limb or the trunk at all. Everything it must say - stay put, hold them
+#: steady, do not lift or stand them, the position their own body chose - is
+#: sayable without one. So naming one is the signal, whatever the surrounding
+#: words claim, and a mutant that wants to elevate anything must first name the
+#: thing it elevates.
+#: AND THIS LIST WAS TOO SHORT ON ITS FIRST VERSION, which an independent
+#: clinical review of this very change found and which is recorded here rather
+#: than quietly extended. It held `trunk` and `torso` and NOT `ankle`, `calf`,
+#: `shin`, `thigh` or `limb` - so "get them down flat and put their ankles up on
+#: a rucksack so the blood runs the other way" passed all 110 tests, and that is
+#: how a real dispatcher says the leg raise. The lesson is not that one list
+#: needed five more words; it is that the lower limb has many names and the
+#: vocabulary has to cover the anatomy rather than the phrasing.
+_BODY_PARTS_A_POSITION_COMMANDS: tuple[str, ...] = (
+    "leg",
+    "feet",
+    "foot",
+    "ankle",
+    "calf",
+    "calves",
+    "shin",
+    "thigh",
+    "limb",
+    "knee",
+    "shoulder",
+    "trunk",
+    "torso",
+    "hip",
+    "head",
+    "back",
+)
+
+#: The second half of the same property, and the reason there are two.
+#:
+#: A SECOND ROUND OF MUTANTS DEFEATED THE BODY-PART ROW, also during this
+#: change's own mutation testing, and they are recorded because they are the
+#: strongest thing built against this fix. "Tipping them gently so the lower
+#: half sits above the chest will get more blood to where it is needed" is
+#: Trendelenburg in full, and it names no body part on the list - "lower half"
+#: is not a limb and "chest" appears legitimately elsewhere in the leaf.
+#: "Letting gravity work in their favour from below" does the same with no
+#: anatomy at all.
+#:
+#: WHAT BOTH SHARE, AND WHAT IS THEREFORE ASSERTED. Every way of raising preload
+#: has to express a HEIGHT RELATION or an INCLINATION - something above
+#: something, tipped, tilted, propped, gravity from below. A rule that commands
+#: no position has no use for any of them: staying put, being held steady and
+#: keeping the position the patient chose are all expressible without a single
+#: one. So the conscious half must contain no elevation concept either, and a
+#: mutant now has to smuggle the harm past two independent vocabularies with no
+#: word left that describes what it is doing.
+#:
+#: THE LIMIT IS REAL AND STATED IN
+#: `test_the_posture_properties_are_string_properties_and_that_is_their_limit`.
+#: Two vocabularies over free prose are much harder to evade than one and are
+#: not a proof. The structural close needs the clause to stop being prose - a
+#: typed positioning value the leaf composes from - and that is a scoped change,
+#: not this one.
+#: AND THIS LIST WAS ALSO TOO SHORT, same review, same change. It held no word
+#: for the horizontal END STATE - "let them sink until they are fully
+#: horizontal, with a rolled coat under the lower limbs" evaded it entirely -
+#: and no word for "up on", which is how the elevation half of the leg raise is
+#: actually said. Supine is half the harm on its own: flat plus anything under
+#: the lower limbs is the preload rise. Recorded rather than silently extended,
+#: because the shape of the miss is the finding.
+_ELEVATION_CONCEPTS: tuple[str, ...] = (
+    "above",
+    "higher",
+    "elevat",
+    "raise",
+    "raising",
+    "tip ",
+    "tipping",
+    "tilt",
+    "prop",
+    "gravity",
+    "incline",
+    "angle",
+    "lower half",
+    "lower end",
+    "uphill",
+    "downhill",
+    # The horizontal end state, which the first version had no word for.
+    "horizontal",
+    "recumbent",
+    "level with",
+    "sink",
+    "up on",
+    "underneath",
+)
+
+#: The third mutant, and the one neither vocabulary above could ever have
+#: caught, because its harmful words are in a DIFFERENT FILE.
+#:
+#: "If they go grey and clammy that is shock, and the shock instructions apply"
+#: names no posture and no body part, and delivers the entire harm: it routes
+#: the patient to `protocols.py:shock-management`, whose text is "Lay them flat
+#: and raise the legs about 30 centimetres". The change's own reasoning is that
+#: retrieval's best available hit for this patient IS that hypovolaemia
+#: document - and nothing stopped the leaf pointing at it by name.
+#:
+#: So the property is separate in kind from the two above: this leaf may not
+#: NAME a protocol whose positioning action is the harm. It defers positioning
+#: to "the protocol for what is actually causing this", which is a pointer L3
+#: resolves from the actual condition; naming a document here would be L2
+#: choosing the document, which is the one thing the deferral must not do.
+_PROTOCOLS_WHOSE_POSITIONING_IS_THE_HARM: tuple[str, ...] = (
+    "shock-management",
+    "shock instructions",
+    "shock protocol",
+    "treat for shock",
+    "that is shock",
+)
+
+
+def test_the_deterioration_rule_names_no_body_part_to_be_moved() -> None:
+    # falsifier: the vocabulary row below is a phrase list, and a phrase list
+    # was DEFEATED by a mutant during this change's own mutation testing -
+    # "getting their feet up onto a bag or a step, with the shoulders settled
+    # back, helps the blood get back to the heart" passed every other test in
+    # this file while delivering the entire harm Blocker 5 found. Elevated feet
+    # and a reclined trunk raise preload into a failing left ventricle whether
+    # the sentence says "legs" or "feet", and whether it commands or merely
+    # recommends.
+    #
+    # So this asserts the PROPERTY that made the phrase list unnecessary: the
+    # conscious-patient guidance names no body part to be moved. It does not
+    # need to - positioning is the protocol's, and every sentence this leaf must
+    # carry is sayable without a limb - so naming one is the signal itself. A
+    # mutant cannot elevate anything without first naming what it elevates.
+    conscious = _conscious_patient_guidance(_distress_leaf().rationale)
+    named = [part for part in _BODY_PARTS_A_POSITION_COMMANDS if part in conscious]
+    assert not named, (
+        f"the conscious-patient guidance names {named}. This leaf defers "
+        f"positioning to the protocol, so it has no reason to name a limb or "
+        f"the trunk - and naming one is how a preload-raising posture gets "
+        f"back in past a phrase list. For pulmonary oedema that posture worsens "
+        f"the failure the rule fires on"
+    )
+
+
+def test_the_deterioration_rule_expresses_no_elevation_or_inclination() -> None:
+    # falsifier: the body-part row above was ITSELF defeated during this
+    # change's mutation testing. "Tipping them gently so the lower half sits
+    # above the chest will get more blood to where it is needed" is
+    # Trendelenburg in full, names no body part on that list, and passed. So did
+    # "letting gravity work in their favour from below", which names no anatomy
+    # at all. Both deliver the preload rise that drowns a patient in cardiogenic
+    # pulmonary oedema.
+    #
+    # What every version of the harm must express is a HEIGHT RELATION or an
+    # INCLINATION, because that is what raising preload physically is. A rule
+    # that commands no position needs none of those words: stay put, hold them
+    # steady, leave the position they chose. So this asserts their absence, and
+    # a mutant must now evade two independent vocabularies with no vocabulary
+    # left for the thing it is trying to do.
+    conscious = _conscious_patient_guidance(_distress_leaf().rationale)
+    expressed = [word for word in _ELEVATION_CONCEPTS if word in conscious]
+    assert not expressed, (
+        f"the conscious-patient guidance expresses elevation or inclination "
+        f"{expressed}. Raising preload is exactly a height relation, so a rule "
+        f"that commands no position has no use for one - and for pulmonary "
+        f"oedema the raised preload is the harm"
+    )
+
+
+def test_the_deterioration_rule_names_no_protocol_whose_action_is_the_harm(
+) -> None:
+    # falsifier: the third mutant an independent review got through this suite,
+    # and the only one neither vocabulary above could ever catch, because its
+    # harmful words live in another file. "If they go grey and clammy that is
+    # shock, and the shock instructions apply" names no posture and no body
+    # part, and routes the patient to `protocols.py:shock-management` - "Lay
+    # them flat and raise the legs about 30 centimetres". The harm arrives by
+    # retrieval, with this leaf's fingerprints on the pointer.
+    #
+    # This change's own argument is that retrieval's best available hit for a
+    # pulmonary oedema patient IS that hypovolaemia document, since the corpus
+    # holds no oedema protocol at all. That argument is exactly why the leaf
+    # must not name it: deferring positioning to "the protocol for what is
+    # actually causing this" leaves the choice of document to the condition,
+    # and naming one here is L2 making that choice - for the wrong patient,
+    # since the four presentations are indistinguishable at this leaf.
+    lowered = _distress_leaf().rationale.lower()
+    named = [
+        marker
+        for marker in _PROTOCOLS_WHOSE_POSITIONING_IS_THE_HARM
+        if marker in lowered
+    ]
+    assert not named, (
+        f"the leaf names {named}, routing the patient to a document whose "
+        f"positioning action is flat-with-legs-raised. For pulmonary oedema "
+        f"that is the harm delivered by retrieval instead of by this string"
+    )
+
+
+def test_the_deterioration_rule_eases_down_a_patient_who_is_no_longer_holding(
+) -> None:
+    # falsifier: the clinical defect an independent review found in this
+    # change's FIRST version, and the sharpest finding against it. The rule said
+    # only "hold them steady where they are" and "leave them in the position
+    # their own body has chosen". For an anaphylaxis patient who sat down before
+    # the collapse and is now slumping, the upright position is the one killing
+    # them - the empty ventricle cannot fill against gravity - it was not
+    # "chosen" by anything, and a bystander holding them up was being told to
+    # maintain it. Prohibiting a change INTO upright does nothing for a patient
+    # already there. Worse than silence: silence would have let the caller
+    # follow their correct instinct to get them down, and the text forbade it
+    # while naming no chair, no floor and no way between them.
+    #
+    # The fix distinguishes HOLDING from FALLING - an observation a bystander
+    # with hands on the patient cannot get wrong, needing no new input - and
+    # eases the falling patient down under control. That is safe under all four:
+    # no preload is added, it is where compressions will be needed in seconds,
+    # and it is the only "down" that requires no lifting.
+    lowered = _distress_leaf().rationale.lower()
+    assert "going limp or sliding" in lowered, (
+        "the rule must name the state in which there is no position left to "
+        "respect; without it the seated collapse is held upright"
+    )
+    assert "ease them down under control" in lowered, (
+        "and must give the action for it. A prohibition with no replacement "
+        "action is what made the first version worse than silence here"
+    )
+    assert "take their weight" in lowered, (
+        "and say how, because the failure mode is dropping them"
+    )
+    # And the distinction is not lost: a patient still holding a position is
+    # still supported in it rather than put on the floor.
+    assert "holding themselves up" in lowered, (
+        "the rule must still respect a position the patient IS holding, or it "
+        "becomes a command to lay everyone down - the original harm inverted"
+    )
+    assert "hold them steady" in lowered
+
+
+def test_the_positioning_rule_does_not_push_adrenaline_further_down_the_leaf(
+) -> None:
+    # falsifier: an independent review measured this change's first version
+    # pushing "ASK FOR AN ADRENALINE" from word 137 to word 198 of 279 - about
+    # 24 extra seconds down a 1m50s monologue - because the positioning
+    # philosophy grew by 45 words of reassurance and machine bookkeeping.
+    # Adrenaline is the only thing that treats anaphylaxis and time-to-
+    # adrenaline is the survival variable, so a clause that delays it is not
+    # free however correct it is. The failure mode this guards is the one this
+    # leaf keeps having: each round adds a defensible sentence, nothing is ever
+    # removed, and the cure ends up behind the caveats.
+    #
+    # Asserted as a POSITION and a TOTAL rather than as a style rule, because
+    # the thing that harms the patient is how long the caller waits, and both
+    # numbers are what L2 hands over.
+    rationale = _distress_leaf().rationale
+    words = rationale.split()
+    marker = rationale.find("ASK FOR AN ADRENALINE")
+    assert marker != -1, "the adrenaline instruction must be in the leaf"
+    before = len(rationale[:marker].split())
+    assert before <= 160, (
+        f"{before} words precede the adrenaline instruction. Round 2's version "
+        f"had 137 and the first attempt at Blocker 5's fix had 198; a caller "
+        f"hears roughly {before / 150 * 60:.0f} seconds of other guidance "
+        f"before being told to look for the one drug that treats this"
+    )
+    assert len(words) <= 260, (
+        f"the leaf is {len(words)} words, about "
+        f"{len(words) / 150 * 60:.0f} seconds of speech. Every round of this "
+        f"review has added a defensible clause and removed none, which is how "
+        f"an instruction becomes something a panicking bystander stops hearing"
+    )
+
+
+def test_the_posture_properties_are_string_properties_and_that_is_their_limit(
+) -> None:
+    # falsifier: the two rows above read as a proof and are not one. They are
+    # two vocabularies matched against free prose, and this repo's signature
+    # failure mode is a mechanism whose only implementation is its own
+    # description - so the honest statement of what they do and do not cover
+    # belongs somewhere that runs, not in a commit message. Without this row a
+    # future author reads "structural" and trusts the clause is closed by
+    # construction, which it is not: a sufficiently determined rephrasing that
+    # invents new words for height will pass, and the real close is to stop the
+    # positioning clause being prose at all - a typed positioning value the leaf
+    # composes from, which is a scoped change and not this one.
+    #
+    # AND THE LENGTH ASSERTIONS THEMSELVES WERE THE WEAK POINT, which the same
+    # review found: the first version asserted `>= 8` and `>= 12`, which the
+    # first vocabularies satisfied while missing the five most natural words for
+    # the lower limb. A stated limit narrower than the real one is this repo's
+    # signature failure mode at one further remove. So the row no longer pins
+    # sizes - it replays EVERY mutant that has ever survived this suite against
+    # the vocabularies, which is a claim about coverage rather than about count.
+    #
+    # Each entry is a real survivor: the first two were built by this change's
+    # author during its own mutation testing, the last three by an independent
+    # clinical reviewer who beat those. All five now die.
+    survivors: tuple[tuple[str, str], ...] = (
+        (
+            "feet-up-on-a-bag",
+            "getting their feet up onto a bag or a step, with the shoulders "
+            "settled back, helps the blood get back to the heart",
+        ),
+        (
+            "tip-the-lower-half-above-the-chest",
+            "tipping them gently so the lower half sits above the chest will "
+            "get more blood to where it is needed",
+        ),
+        (
+            "ankles-on-a-rucksack",
+            "if they go greyer still, get them down flat and put their ankles "
+            "up on a rucksack so the blood runs the other way",
+        ),
+        (
+            "sink-horizontal-coat-under-the-limbs",
+            "let them sink until they are fully horizontal, with a rolled coat "
+            "under the lower limbs",
+        ),
+        (
+            "let-gravity-work-from-below",
+            "letting gravity work in their favour from below is what buys time "
+            "while help is coming",
+        ),
+    )
+    vocabulary = (
+        *_BODY_PARTS_A_POSITION_COMMANDS,
+        *_ELEVATION_CONCEPTS,
+        *_POSTURE_DESTINATIONS,
+    )
+    missed = [
+        name
+        for name, text in survivors
+        if not any(word in text for word in vocabulary)
+    ]
+    assert not missed, (
+        f"these mutants have each survived this suite once already and are now "
+        f"invisible to the vocabularies again: {missed}. Every one of them "
+        f"raises preload in a failing left ventricle"
+    )
+    # The third reviewer mutant is invisible to BOTH vocabularies by
+    # construction, because its harmful words are in another file. Pinned here
+    # so nobody concludes the two lists above cover the space.
+    protocol_mutant = (
+        "if they go grey and clammy that is shock, and the shock instructions "
+        "apply"
+    )
+    assert not any(word in protocol_mutant for word in vocabulary), (
+        "the protocol-naming mutant must remain invisible to the posture "
+        "vocabularies; if it stops being, the separate row guarding it looks "
+        "redundant and gets deleted"
+    )
+    assert any(
+        marker in protocol_mutant
+        for marker in _PROTOCOLS_WHOSE_POSITIONING_IS_THE_HARM
+    ), (
+        "and it must be caught by the row that does own it, or the harm is "
+        "delivered by retrieval with nothing watching"
+    )
+
+
+def test_the_deterioration_rule_commands_no_destination_posture() -> None:
+    # falsifier: BLOCKER 5 OF THE THIRD CLINICAL REVIEW. The rule fired on
+    # "pale, grey, clammy or faint" and commanded supine-plus-legs-raised. Those
+    # four signs are the shared final common path of all four presentations that
+    # reach this leaf - hypovolaemia, distributive collapse, hypoxia in
+    # near-fatal asthma, cardiogenic failure - so they name no mechanism, and for
+    # cardiogenic pulmonary oedema the commanded action is the harm: the
+    # greyness IS the failing left ventricle, and raising the legs increases
+    # venous return into it and worsens the oedema. A patient sitting bolt
+    # upright because that is the only way they can breathe was laid down.
+    #
+    # STRUCTURAL, and the structure is what makes it hard to defeat. A bare
+    # substring list cannot tell a command from a prohibition - the first
+    # version of this row failed on the leaf's own "DO NOT SIT THEM UP", which
+    # is required - and a list that dropped those phrases to go green would stop
+    # seeing the harm come back as a command. So the property asserted is
+    # "issues no destination posture", with prohibitions subtracted by looking
+    # at the clause each hit sits in. A future author who reintroduces the leg
+    # raise by ANY wording in this vocabulary fails here, whatever capitals or
+    # hedges surround it.
+    #
+    # Scoped to the CONSCIOUS-patient half, because the arrest handover after it
+    # must command supine - see `_ARREST_HANDOVER_MARKER` for why that is a
+    # split rather than an exemption for the phrase.
+    branch = _distress_leaf()
+    commanded = _commanded_postures(_conscious_patient_guidance(branch.rationale))
+    assert not commanded, (
+        f"the deterioration rule commands a destination posture {commanded} "
+        f"off signs that name no mechanism. For pulmonary oedema that command "
+        f"worsens the condition it fires on, and L2 holds nothing to tell the "
+        f"four presentations apart"
+    )
+
+
+def test_the_arrest_transition_marker_is_where_this_leaf_hands_over() -> None:
+    # falsifier: the row above is scoped by a marker, so a marker that is absent
+    # or that moves silently would scope it to the whole string or to nothing -
+    # and scoping it to nothing is the quiet way to make the strongest assertion
+    # in this section vacuous. Worse, a future author could escape the rule by
+    # moving a leg raise BEHIND the marker, where a conscious patient's guidance
+    # would still reach it. So both ends are pinned: the marker exists, and what
+    # follows it is about a patient who has STOPPED responding.
+    lowered = _distress_leaf().rationale.lower()
+    assert _ARREST_HANDOVER_MARKER in lowered, (
+        "the leaf must mark where it hands over to the arrest instruction, or "
+        "the posture rule above is scoped to the whole string and the correct "
+        "supine command for compressions reads as the harm"
+    )
+    conscious = _conscious_patient_guidance(lowered)
+    assert conscious and conscious != lowered, (
+        "the split must actually divide the rationale; an empty or whole-string "
+        "result makes the row above assert nothing"
+    )
+    after = lowered[len(conscious) :]
+    # The handover is triggered by loss of consciousness, and the only posture
+    # it may command is the one compressions require.
+    assert "go limp or stop responding" in conscious, (
+        "the trigger for the handover must be loss of consciousness, stated "
+        "before the marker so a responder hears the condition before the action"
+    )
+    assert "chest compressions" in after, (
+        "and what follows the marker must be the arrest instruction, which is "
+        "the only thing licensed to command a position here"
+    )
+
+
+def test_the_arrest_handover_is_not_triggered_by_being_unable_to_speak() -> None:
+    # falsifier: the handover trigger was a three-way disjunction - "if they
+    # stop being able to talk, go limp, or stop responding" - and any one was
+    # sufficient. INABILITY TO SPEAK IS A SIGN OF SEVERE DISTRESS, NOT OF
+    # ARREST, and it is specifically the sign of the two presentations that
+    # reach this leaf without arresting: the silent-chested near-fatal
+    # asthmatic moves too little air to phonate, and the exhausted pulmonary
+    # oedema patient goes to single-word answers and then none. Both are
+    # conscious and perfusing. So the leaf opened with "Do NOT start
+    # compressions: they have a circulation, and compressions on an awake
+    # patient in respiratory distress harm them" and closed by commanding
+    # exactly that on the commonest deterioration sign in its own population.
+    #
+    # This row matters MORE after Blocker 5's fix than it did before. The
+    # handover is now the ONLY destination posture the leaf commands, so its
+    # trigger being right is the whole of its safety rather than one detail.
+    lowered = _distress_leaf().rationale.lower()
+    # The trigger is stated BEFORE the handover marker, so a responder hears
+    # the condition before the action - which is also why the row below reads
+    # the conscious-patient half rather than what follows the marker.
+    trigger = _conscious_patient_guidance(lowered)
+    # The prohibition the leaf opens with must still be there to contradict.
+    assert "do not start compressions" in lowered, (
+        "the leaf must still prohibit compressions on an awake patient, or "
+        "there is no contradiction for this row to guard"
+    )
+    for speech_sign in (
+        "stop being able to talk",
+        "cannot speak",
+        "cannot talk",
+        "stop talking",
+        "unable to speak",
+    ):
+        assert speech_sign not in lowered, (
+            f"'{speech_sign}' licenses compressions on a conscious, perfusing "
+            f"patient in respiratory distress - the harm this leaf exists to "
+            f"prevent, triggered by its own closing clause"
+        )
+    # And what DOES license it is loss of consciousness, which is the line
+    # `Responsiveness.is_unconscious` already draws elsewhere in the module.
+    assert "go limp" in trigger and "stop responding" in trigger, (
+        "only loss of consciousness may hand over to compressions"
+    )
+    assert Responsiveness.PAIN.is_unconscious and Responsiveness.VOCAL.is_unconscious is False, (
+        "and the module must already draw that line, so the leaf's trigger and "
+        "its type agree rather than being two rules"
+    )
+
+
+def test_the_posture_detector_tells_a_command_from_a_prohibition() -> None:
+    # falsifier: `_commanded_postures` is the instrument the row above depends
+    # on, and an instrument that reported nothing would make that row vacuous
+    # while it read as the strongest assertion in this section - this repo's
+    # signature failure mode, a mechanism whose only implementation is its own
+    # description, counted five times by the third review. So it is exercised in
+    # both directions on strings this file owns, including the exact sentence
+    # Blocker 5 removed and the exact sentence that replaced it.
+    deleted = (
+        "IF THEY GO PALE, GREY, CLAMMY OR FAINT, sitting or standing them up is "
+        "dangerous in its own right - lower them back down and raise their legs."
+    )
+    assert _commanded_postures(deleted), (
+        "the detector must catch the sentence Blocker 5 removed; if it cannot, "
+        "the row above cannot notice the harm being reintroduced"
+    )
+    prohibited = (
+        "DO NOT LIFT THEM, DO NOT SIT THEM UP FURTHER, DO NOT STAND THEM UP "
+        "AND DO NOT WALK THEM ANYWHERE."
+    )
+    assert not _commanded_postures(prohibited), (
+        "and must not flag the prohibitions the leaf is required to carry, or "
+        "the only way to pass is to delete them"
+    )
+    # A prohibition three sentences earlier may not launder a later command -
+    # the laundering a reviewer would reach for first.
+    laundered = (
+        "Do not stand them up. Keep them calm and stay with them. If they go "
+        "grey, lay them down and raise their legs."
+    )
+    assert _commanded_postures(laundered), (
+        "a distant 'do not' must not excuse a later command, or the detector "
+        "is defeated by moving one sentence"
+    )
+
+
+def test_the_deterioration_rule_prohibits_the_change_dangerous_to_all_four() -> None:
+    # falsifier: the rule is weakened into silence rather than corrected. The
+    # fix above removes the commanded position, and a fix that removed the whole
+    # sentence would reopen the round-2 defect it replaced: an anaphylaxis
+    # patient whose circulation has collapsed dies when they are sat or stood
+    # UP - the empty-ventricle phenomenon - and that is the one posture change
+    # that is dangerous under every one of the four hypotheses. Hypovolaemia,
+    # cardiogenic failure and near-fatal asthma are all made worse by being
+    # lifted or walked too. So the prohibition must survive the removal of the
+    # command; otherwise this change trades a harm for an omission.
+    lowered = _distress_leaf().rationale.lower()
+    for prohibited, why in (
+        ("do not lift them", "lifting is how the empty-ventricle arrest starts"),
+        (
+            "do not sit them up further",
+            "sitting a collapsed anaphylaxis patient up is the killing action "
+            "the corpus rule exists to prevent",
+        ),
+        (
+            "do not stand them up",
+            "standing is the most dangerous of the four and the one a bystander "
+            "reaches for when they want to get the patient to a car",
+        ),
+        (
+            "do not walk them",
+            "walking a peri-arrest patient anywhere is the same failure spread "
+            "over thirty seconds",
+        ),
+    ):
+        assert prohibited in lowered, (
+            f"the deterioration rule must prohibit this: {why}"
+        )
+
+
+def test_the_deterioration_rule_defers_to_the_conscious_patient_own_posture(
+) -> None:
+    # falsifier: the rule prohibits moving the patient and then leaves the
+    # responder with nothing to DO, so a bystander watching someone go grey
+    # improvises - and the improvisation is picking them up. The replacement for
+    # a commanded posture is not silence, it is the one discriminator that is
+    # free and already present: a CONSCIOUS patient's own position, which the
+    # oedema patient adopts because it is the only way they can breathe and
+    # which is therefore driven by the mechanism rather than by a bystander's
+    # report of it. If this deference disappears, the rule stops being safe
+    # under four hypotheses and starts being merely empty.
+    #
+    # THE DEFERENCE IS SCOPED to a patient who is actually holding a position -
+    # an independent review found the first version deferring to the "chosen"
+    # posture of a patient who had already lost it, which held a collapsing
+    # anaphylaxis casualty upright. See
+    # `test_the_deterioration_rule_eases_down_a_patient_who_is_no_longer_holding`
+    # for the other half; this row owns the half that still defers.
+    lowered = _distress_leaf().rationale.lower()
+    assert "hold them steady" in lowered, (
+        "support in place is the action that replaces the commanded posture"
+    )
+    assert "cannot fall" in lowered, (
+        "a fainting patient held upright must be stopped from falling; that is "
+        "what makes staying put safe rather than merely inactive"
+    )
+    assert "position they can breathe in" in lowered, (
+        "the rule must defer to the patient's own posture explicitly, because "
+        "that is the discriminator standing in for the input L2 cannot hold"
+    )
+
+
+def test_no_new_input_was_added_to_distinguish_the_four_presentations() -> None:
+    # falsifier: the tempting fix is an input that identifies cardiogenic
+    # failure, and it is refused on two grounds a future author will not
+    # rediscover. It is UNPERFORMABLE - crackles are `auscultation`, already
+    # excluded; frothy sputum is late; "does he sleep propped up on pillows" is
+    # a history question a non-household bystander cannot answer - and
+    # CLINICAL-STANDARDS.md §5.4 refuses all three, with the counted-respiratory-
+    # rate failure mode attached: asked anyway, the caller GUESSES, and the
+    # guess enters L2 looking like data on the input that decides whether to lay
+    # a patient down. It is also unnecessary, since the conscious patient's own
+    # posture is free and better. This row is what fails if someone adds it
+    # quietly - and it also pins ASM-09's walk size, which a new enum multiplies.
+    fields = set(AssessmentInputs.__dataclass_fields__)
+    for forbidden in (
+        "crackles",
+        "auscultation",
+        "frothy_sputum",
+        "orthopnoea",
+        "cardiac_history",
+        "oedema",
+        "skin_colour",
+        "perfusion",
+    ):
+        assert forbidden not in fields, (
+            f"'{forbidden}' is an unperformable discriminator; §5.4 refuses it "
+            f"and a guessed answer would decide a patient's position"
+        )
+    # The walk is exhaustive over the product of the input domains, so its size
+    # is the mechanical consequence of that field set. Pinned as a number
+    # because ASM-09's budget is measured against it and a new enum input
+    # multiplies it - silently, if nothing asserts the count.
+    assert len(ALL_BRANCHES) == 139968, (
+        f"the walk is {len(ALL_BRANCHES)} combinations, not 139968: an input "
+        f"was added or removed. ASM-09's 8.0 s bound is measured against this "
+        f"size, so re-measure it rather than adjusting this number"
     )
 
 
@@ -4192,12 +4956,8 @@ def test_the_recorded_gaps_stay_recorded() -> None:
             "the spinal leaf's jaw thrust is a clinical disagreement with the "
             "previous round, not a settled fix",
         ),
-        (
-            "tension pneumothorax",
-            "leg-raising on deterioration is the weakest part of Defect 4's "
-            "fix for a penetrating chest injury; flagged by independent "
-            "review, kept deliberately, and recorded as a judgement",
-        ),
+        # NOT the two leg-raise rows, which are now FIXED rather than recorded -
+        # see `test_the_leg_raise_gaps_are_recorded_as_closed_and_not_as_open`.
         (
             "tongue into the airway",
             "the named untrained failure mode of a jaw thrust",
@@ -4219,20 +4979,69 @@ def test_the_recorded_gaps_stay_recorded() -> None:
         # recorded - see
         # `test_the_contradiction_wording_gap_is_recorded_as_closed_and_not_as_open`.
         (
-            "are the failure itself",
-            "the deterioration rule is WRONG for pulmonary oedema: the "
-            "greyness and clamminess ARE the cardiogenic failure, so the "
-            "trigger fires on the patient the rule then harms",
-        ),
-        (
-            "worsens the oedema",
-            "flat-with-legs-raised increases venous return into a failing left "
-            "ventricle; the existing chest-wound gap concedes the tension "
-            "objection and does not address this, where the mechanism argument "
-            "runs the other way",
+            "the anaphylaxis leg raise is a real loss",
+            "the residue of Blocker 5's fix, and the one thing it costs: the "
+            "corpus's action for the empty-ventricle collapse is "
+            "flat-with-legs-raised and this module no longer says it. A fix "
+            "that recorded no cost would be claiming a clean close it did not "
+            "get",
         ),
     ):
         assert owed in lowered, f"the module must record: {why}"
+
+
+def test_the_leg_raise_gaps_are_recorded_as_closed_and_not_as_open() -> None:
+    # falsifier: the mirror of the row above, and the reason it is separate.
+    # TWO entries in the recorded-gaps block used to describe the deterioration
+    # rule's leg raise as an open gap - the tension-pneumothorax judgement for
+    # the stabbed chest, and the pulmonary-oedema reversal that Blocker 5 of the
+    # third clinical review found. Both are now closed by one change. If the
+    # block keeps calling them open, the next author reads a warning about a
+    # harm that no longer exists, goes looking for it, and either re-fixes it or
+    # concludes the gaps block is stale and stops trusting the rest of it - and
+    # the rest of it is where the electricity and bleeding gaps live. A gap list
+    # that lies in the safe direction still destroys its own credibility.
+    source = Path(inspect.getfile(decide)).read_text(encoding="utf-8")
+    lowered = " ".join(source.lower().split())
+    for owed, why in (
+        (
+            "the leg-raise gaps are both closed",
+            "the two gaps must be marked closed where they were recorded, not "
+            "silently deleted - a deleted gap looks like one nobody found",
+        ),
+        (
+            "the trigger was the defect rather than the fourth presentation",
+            "and name WHY one change closed both: pale, grey, clammy and faint "
+            "are the shared final common path of all four presentations, so "
+            "they name no mechanism and cannot license a destination posture",
+        ),
+        (
+            "tension pneumothorax",
+            "the chest-wound objection stays on record; it is now met rather "
+            "than overruled, and a reader must be able to see it was raised",
+        ),
+        (
+            "worsens the oedema",
+            "and the oedema mechanism stays on record as the finding that "
+            "forced the change, not as a live harm",
+        ),
+        (
+            "what remains of it, and it is not nothing",
+            "and be honest that the anaphylaxis leg raise is a real cost, "
+            "rather than claiming a clean close",
+        ),
+    ):
+        assert owed in lowered, f"the module must record: {why}"
+
+    # And the claim is not merely prose: the harm it says is closed is absent
+    # from the branch a real patient reaches. A recorded fix whose mechanism is
+    # not in the reachable output is this repo's signature failure mode - a
+    # mechanism whose only implementation is its own description.
+    reached = _distress_leaf().rationale.lower()
+    assert "raise their legs" not in reached, (
+        "the module records the oedema harm as closed while the leaf a real "
+        "patient reaches still commands the leg raise"
+    )
 
 
 def test_the_hazard_class_gap_is_recorded_as_closed_and_not_as_open() -> None:

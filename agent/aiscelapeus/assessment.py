@@ -123,7 +123,20 @@ and each closed where it bites:
    `protocols.py:anaphylaxis`'s flat-with-legs-raised rule, which exists
    because these patients arrest when they sit or stand up. Now conditional,
    with the per-condition detail deferred to the protocol; the decision is
-   recorded at the leaf.
+   recorded at the leaf. AND THAT FIX'S OWN DETERIORATION RULE WAS THEN FOUND
+   HARMFUL FOR PULMONARY OEDEMA by a third pass, which is Blocker 5 below.
+5. THE DETERIORATION RULE COMMANDED A POSITION OFF SIGNS THAT NAME NO
+   MECHANISM. BLOCKER 5 OF THE THIRD CLINICAL REVIEW. Defect 4's fix said "if
+   they go pale, grey, clammy or faint, lower them back down and raise their
+   legs" - correct for anaphylaxis, a recorded judgement for the stabbed chest,
+   and ACTIVELY HARMFUL for cardiogenic pulmonary oedema, where the greyness and
+   clamminess ARE the failing left ventricle and raising the legs increases the
+   preload it cannot clear. Four presentations reach that leaf and L2 holds
+   nothing to tell them apart, so the rule now commands no destination posture
+   in either direction: it prohibits the change dangerous under all four -
+   lifting, sitting or standing them up, walking them - and defers the position
+   itself to the conscious patient's own instinct. See the leaf for the
+   per-presentation argument and the three rejected alternatives.
 
 RECORDED GAPS - NOT CLOSED HERE
 ===============================
@@ -227,38 +240,53 @@ not rediscover them as surprises. A test asserts each one stays recorded.
   surfaced; only the announcement of it is gone. WHAT REMAINS: L2 pins the words
   and cannot verify L3 spoke them, which is the general limit on every pinned
   phrasing here and not specific to this one.
-- LEG-RAISING ON DETERIORATION IS NOT CLEARLY RIGHT FOR A PENETRATING CHEST
-  INJURY. Defect 4's fix gives one deterioration rule - if they go pale, grey,
-  clammy or faint, lower them and raise the legs - because L2 cannot tell which
-  of the four presentations it is looking at and that rule is what the corpus's
-  anaphylaxis positioning actually protects against. An independent review
-  flagged that the stabbed chest is the weakest of the four for it: some
-  chest-trauma guidance prefers semi-recumbent or wounded-side-down, and
-  raising the legs of a developing tension pneumothorax increases venous return
-  into a thorax that cannot accommodate it. The rule is KEPT, because shock
-  from a chest wound is far more often hypovolaemia than tension physiology and
-  because "they went grey and we sat them up" is the failure this rule exists
-  to prevent in all four - but it is the one part of Defect 4's fix that is a
-  judgement rather than a derivation, and a clinician should settle it.
-- AND THE DETERIORATION RULE IS WRONG FOR PULMONARY OEDEMA, which is a separate
-  finding from the stab wound above and runs the OTHER way. The third clinical
-  review found it. The gap above concedes the tension-pneumothorax objection for
-  the penetrating chest injury and does not address pulmonary oedema at all, and
-  the mechanism argument there does not merely weaken - it reverses. For the
-  stabbed chest, the greyness and clamminess are usually hypovolaemia, which is
-  why raising the legs is defensible. For cardiogenic pulmonary oedema THE
-  GREYNESS AND CLAMMINESS ARE THE FAILURE ITSELF - they are the sympathetic
-  response to a left ventricle that cannot clear its preload - so the trigger
-  this rule fires on is not a sign of a patient who needs more venous return but
-  the sign of one who is already drowning in it. Laying them flat and raising
-  the legs increases venous return into that failing ventricle and WORSENS the
-  oedema; these patients sit bolt upright for a physiological reason, and the
-  rule as written takes them out of the position that is keeping them alive.
-  This is the one of the four presentations for which the rule is not merely the
-  weakest option but actively harmful, and closing it needs either an input that
-  distinguishes cardiogenic failure or a deterioration rule that does not
-  command a position. Recorded, not fixed: it is a clinical decision with an
-  owner and it is not this change's scope.
+- THE LEG-RAISE GAPS ARE BOTH CLOSED, AND THE LEG RAISE ITSELF IS GONE FROM
+  THIS MODULE. BLOCKER 5 OF THE THIRD CLINICAL REVIEW. Described here rather
+  than deleted because two entries in this list used to be OPEN gaps about the
+  same sentence, and the next author needs to know which way they moved.
+
+  WHAT THEY SAID. Defect 4's fix gave one deterioration rule - if they go pale,
+  grey, clammy or faint, lower them and raise the legs - because L2 cannot tell
+  which of the four presentations it is looking at, and that rule is what the
+  corpus's anaphylaxis positioning actually protects against. Two independent
+  reviews then objected to it from opposite directions. For the PENETRATING
+  CHEST INJURY the objection was a weakening: some chest-trauma guidance prefers
+  semi-recumbent or wounded-side-down, and raising the legs of a developing
+  tension pneumothorax increases venous return into a thorax that cannot
+  accommodate it - but shock from a chest wound is far more often hypovolaemia,
+  so the rule was kept as an explicit judgement. For CARDIOGENIC PULMONARY
+  OEDEMA the objection REVERSED the mechanism, and the gap above did not address
+  it: THE GREYNESS AND CLAMMINESS ARE THE FAILURE ITSELF, the sympathetic
+  response to a left ventricle that cannot clear its preload, so laying them
+  flat and raising the legs increases venous return into that failing ventricle
+  and WORSENS the oedema. These patients sit bolt upright for a physiological
+  reason and the rule took them out of the position keeping them alive - the one
+  presentation of the four where it was not merely weakest but actively harmful.
+
+  WHAT CLOSED THEM, AND IT IS ONE CHANGE FOR BOTH: THE TRIGGER WAS THE DEFECT
+  RATHER THAN THE FOURTH PRESENTATION. Pale, grey, clammy and faint are the
+  shared final common path of hypovolaemia, distributive collapse, hypoxia and
+  cardiogenic failure alike, so they carry NO information about which mechanism
+  is running and any rule commanding a DESTINATION POSTURE off them is guessing
+  the mechanism from a sign that cannot name it. The rule now commands no
+  position in either direction. It prohibits the one posture change dangerous
+  under all four hypotheses - lifting, sitting or standing them up, or walking
+  them - and otherwise supports them where they are, in the position their own
+  body chose, which for a CONSCIOUS patient is a better discriminator than any
+  input this module could hold. See the leaf for the per-presentation argument
+  and for why a distinguishing input, wholesale deferral to the protocol and
+  splitting the leaf were each refused.
+
+  WHAT REMAINS OF IT, AND IT IS NOT NOTHING. THE ANAPHYLAXIS LEG RAISE IS A
+  REAL LOSS for that one presentation: the corpus's action for the empty-ventricle
+  collapse is flat-with-legs-raised, and this module no longer says it. The
+  PROTECTIVE half survives - the death is caused by being sat or stood up, which
+  is exactly what is now prohibited - and nothing here blocks the protocol's leg
+  raise once the condition is actually known. It is accepted because the same
+  command harms a patient L2 cannot distinguish from this one, and an
+  instruction safe for three of four is not what §5.1 licenses. A clinician who
+  wants the leg raise back needs the distinguishing input, and §5.4 refuses the
+  only bystander-answerable forms of it.
 - THE SPINAL LEAF'S TECHNIQUE IS CONTESTED, and this one is a genuine clinical
   DISAGREEMENT with the previous round's fix rather than a gap. That fix has
   `INSTRUCT_AIRWAY_WITH_SPINAL_CARE` coach a jaw thrust with manual in-line
@@ -2050,6 +2078,166 @@ def _decide(path: _Consulted) -> AssessmentBranch:
         #   as much as to anaphylaxis. Positioning detail beyond that is left to
         #   the cited protocol, which is where the per-condition wording lives.
         #
+        # BLOCKER 5 OF THE THIRD CLINICAL REVIEW: THE DETERIORATION RULE WAS
+        # WRONG FOR PULMONARY OEDEMA, AND THAT IS NOT A FOURTH-PRESENTATION
+        # WEAKNESS BUT A MECHANISM RUNNING BACKWARDS.
+        #
+        # Round 2's rule above - "if they go pale, grey, clammy or faint, lower
+        # them back down and raise their legs" - was judged correct for
+        # anaphylaxis and a defensible judgement for the stabbed chest (both
+        # still recorded, and both still true). For cardiogenic pulmonary oedema
+        # it is actively harmful: THE GREYNESS AND CLAMMINESS ARE THE FAILURE
+        # ITSELF, the sympathetic response to a left ventricle that cannot clear
+        # its preload, so the trigger fires on the one patient for whom the
+        # commanded action - supine plus raised legs - increases venous return
+        # into the failing ventricle and worsens the oedema. These patients sit
+        # bolt upright for a physiological reason and the rule took them out of
+        # the position keeping them alive.
+        #
+        # THE TRIGGER IS THE PROBLEM, NOT THE FOURTH PRESENTATION. Pale, grey,
+        # clammy and faint are the shared final common path of every one of the
+        # four: hypovolaemia, distributive collapse, hypoxia in near-fatal
+        # asthma, and cardiogenic failure all produce them. So the signs carry
+        # NO information about which mechanism is running, and any rule that
+        # commands a DESTINATION POSTURE off them is guessing the mechanism from
+        # a sign that cannot name it. That is the defect, and it does not get
+        # smaller by improving the wording of the destination.
+        #
+        # WHAT THIS NOW DOES. The rule commands no position in either direction.
+        # It prohibits the one posture change that is dangerous under ALL FOUR
+        # hypotheses - lifting, sitting or standing them UP, or walking them -
+        # and otherwise says to support them where they already are and let
+        # gravity and their own effort keep the position they chose. That is
+        # `CLINICAL-STANDARDS.md` §5.1's "the intervention safe under BOTH
+        # hypotheses" applied to four, and it is the SAME instrument this module
+        # uses for the alert-plus-apnoea contradiction: when the inputs cannot
+        # resolve which patient this is, act on what is true of all of them.
+        #   - ANAPHYLAXIS: the empty-ventricle death is caused by the patient
+        #     being sat or stood UP, or standing themselves up, after the
+        #     circulation has collapsed. That is prohibited. What is NOT
+        #     commanded is the leg raise - the corpus's action, and a real loss
+        #     for this presentation, accepted because the same command harms a
+        #     patient the machine cannot distinguish from this one.
+        #
+        #     AND THE FIRST VERSION OF THIS FIX WAS WORSE THAN SILENCE FOR THE
+        #     SEATED ANAPHYLAXIS COLLAPSE, WHICH AN INDEPENDENT CLINICAL REVIEW
+        #     OF THIS VERY CHANGE FOUND. It said only "hold them steady where
+        #     they are" and "leave them in the position their own body has
+        #     chosen". For a patient who sat down BEFORE the collapse and is now
+        #     slumping, both sentences are wrong: the upright position is the
+        #     one killing them, it was not "chosen" by anything, and a bystander
+        #     holding them up is being told to maintain it. Prohibiting a change
+        #     INTO upright does nothing for a patient already there - that was
+        #     half the mechanism read as the whole of it. Worse, the text named
+        #     no chair, no floor and no way to get from one to the other, so the
+        #     caller's correct instinct was forbidden and nothing replaced it.
+        #
+        #     CLOSED BY DISTINGUISHING HOLDING FROM FALLING, which is an
+        #     observation a bystander with hands on the patient cannot get
+        #     wrong and which needs no new input. A patient still holding
+        #     themselves up is supported there. A patient GOING LIMP OR SLIDING
+        #     is not holding a position at all, so there is none to respect, and
+        #     they are eased DOWN under control - onto their side if vomiting is
+        #     possible. That is safe under all four hypotheses: it is not a leg
+        #     raise and adds no preload, it is where compressions will be needed
+        #     within seconds anyway, and it is the only version of "down" that
+        #     does not require lifting. The distinction is between RESPECTING a
+        #     posture and MAINTAINING one the patient has already lost.
+        #   - PULMONARY OEDEMA: the patient who is sitting bolt upright stays
+        #     sitting bolt upright. The rule can no longer lay them down or raise
+        #     their legs, which is the harm the reviewer found, and it never
+        #     asks them to stand.
+        #   - ACUTE ASTHMA: a grey, silent-chested asthmatic is peri-arrest from
+        #     hypoxia. Nothing here moves them, the tripod position they chose is
+        #     left alone, and the transition to compressions is owned by this
+        #     leaf's closing clause unchanged.
+        #   - PENETRATING CHEST INJURY: no leg raise into a possibly developing
+        #     tension pneumothorax, no standing a hypovolaemic trauma patient,
+        #     and semi-recumbent or wounded-side-down remains available to the
+        #     protocol. This strictly improves on the judgement the gap above
+        #     recorded rather than relying on it.
+        #
+        # WHY NOT A DISTINGUISHING INPUT, reconsidered rather than inherited.
+        # Round 2 rejected one because it could not change this leaf's action;
+        # that reason is now void, since it plainly would. Rejected anyway, on
+        # two grounds that are about this input and not about turn cost:
+        #   - IT IS NOT PERFORMABLE. The layperson-answerable discriminators for
+        #     cardiogenic oedema are frothy pink sputum, audible crackles and
+        #     orthopnoea history. Crackles are `auscultation`, already in
+        #     `UNPERFORMABLE_ASSESSMENTS`; frothy sputum is late and absent in
+        #     most of the window this leaf owns; and "does he normally sleep
+        #     propped up on pillows" is a history question a panicking bystander
+        #     who is not a household member cannot answer. §5.4's dividing line
+        #     refuses all three, and the failure mode is the one the module
+        #     already names for counted respiratory rate: asked anyway, the
+        #     caller GUESSES, and the guess enters L2 looking like data - on the
+        #     input that would decide whether to lay a patient down.
+        #   - IT IS UNNECESSARY, which is the stronger half. A conscious
+        #     patient's own posture is a BETTER discriminator than any input L2
+        #     could hold: the oedema patient sits up because sitting up is the
+        #     only way they can breathe, and that instinct is driven by the
+        #     mechanism itself rather than by a bystander's report of it. The
+        #     rule now defers to that instinct instead of asking a question
+        #     whose answer it would trust less. An input that buys nothing over
+        #     free, already-present information is one this leaf does not need,
+        #     and declining it keeps ASM-09's walk at 139,968 combinations
+        #     instead of multiplying it.
+        #
+        # WHY NOT DEFERRING POSITIONING TO THE PROTOCOL, re-judged as asked and
+        # STILL REFUSED, for a reason round 2 did not have: there is no protocol
+        # to defer to. `protocols.py` holds no pulmonary-oedema document at all,
+        # and its only leg-raise rule - `shock-management` - is explicitly scoped
+        # to lost volume ("The cause is lost volume, not exposure"), while
+        # `chest-pain-cardiac` says to SIT a breathless cardiac patient down and
+        # leaning back. So retrieval on this patient does not merely miss at 36%;
+        # its best available hit is the hypovolaemia document whose action is the
+        # harmful one. Deferral would route the oedema patient to the same leg
+        # raise by a longer path. The generalisation of that hypovolaemia-scoped
+        # corpus rule to a leaf where three of four presentations are not
+        # hypovolaemic is, on inspection, where round 2's rule came from.
+        #
+        # WHY NOT SPLITTING THE LEAF: it needs the distinguishing input above,
+        # so it fails for that reason and not for a separate one.
+        #
+        # AND THE FIRST VERSION OF THIS FIX PUSHED ADRENALINE 61 WORDS LATER,
+        # which the same independent review measured: 137 words in front of
+        # "ASK FOR AN ADRENALINE" became 198 of 279, roughly 24 extra seconds
+        # down a 1m50s monologue, on the one instruction that treats the one
+        # presentation here with a specific cure and whose survival variable is
+        # time-to-adrenaline. Two clauses were the cost and neither was an
+        # action: 44 words of reassurance and epistemics ("it is chosen for a
+        # reason and we cannot tell from here which one") and 19 words of
+        # machine bookkeeping spoken at a caller ("the per-condition
+        # positioning belongs to the protocol for what is actually causing
+        # this"). A bystander at 3am has not been told there is a protocol and
+        # cannot act on that sentence at all. Both are GONE: the deferral is
+        # structural - this leaf commands no position, which is the whole point
+        # - so narrating it buys nothing, and explaining the machine's
+        # uncertainty is not an instruction. What replaced them is an action.
+        # ADRENALINE ALSO MOVED AHEAD OF THE DETERIORATION RULE, which is the
+        # right order on its own merits: the auto-injector applies from the
+        # first second, while the deterioration rule is conditional on a change
+        # that has not happened yet. It is now at word 89 of 252, ahead of
+        # round 2's own 137.
+        #
+        # AND THE ARREST TRIGGER IS NARROWED, which the same review called the
+        # highest-leverage clause in the leaf and which this change makes
+        # load-bearing rather than incidental. It was a three-way disjunction:
+        # "if they stop being able to talk, go limp, or stop responding". Any
+        # one sufficient - and INABILITY TO SPEAK IS A SIGN OF SEVERE DISTRESS,
+        # NOT OF ARREST. It is specifically the sign of the two presentations
+        # that reach this leaf and do not arrest: the silent-chested near-fatal
+        # asthmatic moves too little air to phonate, and the exhausted oedema
+        # patient goes to single words and then none. Both are conscious and
+        # perfusing, so the leaf opened by prohibiting compressions on exactly
+        # that patient and closed by commanding them on the commonest
+        # deterioration sign in its own population. Now only loss of
+        # consciousness licenses the handover, which is the same line
+        # `Responsiveness.is_unconscious` already draws. THIS MATTERS MORE
+        # AFTER BLOCKER 5 than before it: the handover is now the ONLY
+        # destination posture this leaf commands, so its trigger being right is
+        # the whole of its safety rather than one detail of it.
+        #
         # The auto-injector wording also changes. "If they have one" versus the
         # corpus's "ask for an auto-injector and check pockets and bags" is the
         # same defect in miniature - a passive clause where the corpus is
@@ -2064,19 +2252,22 @@ def _decide(path: _Consulted) -> AssessmentBranch:
             "the position they can breathe in and support them there - most "
             "people in this state choose to sit up and lean forward, and that "
             "is usually the one that helps. Do not force them flat while they "
-            "are fighting for air, and do not make them stand or walk. IF THEY "
-            "GO PALE, GREY, CLAMMY OR FAINT, sitting or standing them up is "
-            "dangerous in its own right - lower them back down and raise their "
-            "legs, and follow the positioning in the protocol for what is "
-            "actually causing this, which is where the per-condition rule "
-            "lives. If this could be a severe allergic reaction, ASK FOR AN "
-            "ADRENALINE AUTO-INJECTOR AND GET THEM TO CHECK POCKETS AND BAGS "
-            "for it - theirs, not somebody else's - and help them use their "
-            "own reliever inhaler if they have one. Loosen anything tight at "
-            "the neck, keep them calm, and stay with them. THE THING TO WATCH "
-            "FOR: if they stop being able to talk, go limp, or stop "
-            "responding, that is a different emergency - lower them down and "
-            "start chest compressions, and report the change immediately."
+            "are fighting for air, and do not make them stand or walk. If this "
+            "could be a severe allergic reaction, ASK FOR AN ADRENALINE "
+            "AUTO-INJECTOR AND GET THEM TO CHECK POCKETS AND BAGS for it - "
+            "theirs, not somebody else's - and help them use their own "
+            "reliever inhaler if they have one. Loosen anything tight at the "
+            "neck and keep them calm. IF THEY GO PALE, GREY, CLAMMY OR FAINT: "
+            "DO NOT LIFT THEM, DO NOT SIT THEM UP FURTHER, DO NOT STAND THEM "
+            "UP AND DO NOT WALK THEM ANYWHERE, however much they or anyone "
+            "else wants to. If they are holding themselves up, hold them "
+            "steady there so they cannot fall. IF THEY ARE GOING LIMP OR "
+            "SLIDING, they are no longer holding any position - take their "
+            "weight and EASE THEM DOWN UNDER CONTROL where they are, onto "
+            "their side if they might vomit, and stay with the airway. THE "
+            "THING TO WATCH FOR: if they go limp or stop responding, that is a "
+            "different emergency - lower them down and start chest "
+            "compressions, and report the change immediately."
             + _hazard_suffix(scene),
             # DEFECT 2 OF THE RE-REVIEW: THE PROVENANCE CONTRACT.
             #
