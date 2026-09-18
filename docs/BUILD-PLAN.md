@@ -236,6 +236,54 @@ Drive all five tools through `FakeMoss`: tool-call sequences, the
 `LevelChange.should_persist` path, `TierViolation` on a Class-0 call to a network store,
 doc-ID collision on resume via `ConnectOutcome.resumed_existing_session`.
 
+### L2 — the assessment state machine — **DONE** (18 Sept, `3dee464`)
+
+> Not in the original B-series because it did not exist when the plan was written. It is the
+> layer `docs/ARCHITECTURE-ASSESSMENT.md` calls L2: pure domain logic between `phrases.py`'s
+> markers (L1) and the agent (L3). Built, **not wired** — the wire-up must call `is_authentic`.
+>
+> **The design was amended before any code existed, and that is the only reason this is
+> committable.** `ARCHITECTURE-ASSESSMENT.md` still specified the design the clinical safety
+> review had blocked, so building against it would have put the BLACK-expectant path into
+> code. See `d745779`.
+>
+> **Three adversarial clinical rounds, each PROD 2/5, each finding what the last fix opened:**
+>
+> | Round | Found |
+> |---|---|
+> | 1 | Haemorrhage deferred behind the breathing question; a bleeding arrest never told to stop the blood; the scene gate an absorbing loop; choking with no representation at all |
+> | 2 | The awake-gasping fix one notch too wide — *"sit them upright, use their inhaler"* to a patient reported **not breathing** — and **two named tests asserting the defect** |
+> | 3 | The bleed hoist outranking the airway on a patient who **has no airway**, and a guard test structurally unable to find the defect it was commissioned to find |
+>
+> Round 3's transferable lesson: round 2's bleed-vs-choker judgement was *sound for `breathing`
+> unknown* and **false for `breathing` established NONE** — a correct rule applied outside the
+> premise that justified it.
+>
+> **ASM-12 now holds mechanically.** `_Consulted` has no `pulse` accessor, so a branch cannot
+> consult it without someone deliberately adding one. The only `inputs.pulse` mentions in the
+> module are comments explaining why it is ignored.
+>
+> **ASM-06 was downgraded from prevention to detection**, and the original claim withdrawn:
+> Python affords no unforgeable value (`object.__new__` plus `__setattr__` forges a branch;
+> subclassing defeats a sentinel). `is_authentic` checks identity against branches `decide`
+> actually minted.
+>
+> Exhaustive walk over 373,248 combinations. Four rounds of mutation testing; two rules were
+> **deleted** rather than kept as unproven code when their mutants survived.
+
+### L2 follow-ups — open, and deliberately NOT bundled
+
+The round-3 reviewer was explicit that these are separate scoped changes.
+
+| # | Item | Why it is not just tidying |
+|---|---|---|
+| **3** | `SceneSafety` cannot distinguish *a hazard you can work beside* from *a hazard that is in the patient* | **Latent before the three-state scene fix; now reachable to `INSTRUCT_CPR`.** Live electricity makes touching the patient the mechanism of injury, and `_hazard_suffix` describes a hazard that *moves toward you*. The pinned question already enumerates traffic, fire and electricity — the information is collected and then discarded into a two-value verdict. **In progress.** |
+| **4** | `_contradiction_clause`'s wording | Routing is right; the words tell the operator to relitigate the caller's report mid-compression, where a dispatcher re-tests invisibly — as `ASK_AIRWAY_OBSTRUCTION` already does with *"can he answer you?"* |
+| **5** | The deterioration rule is wrong for **pulmonary oedema** | The greyness and clamminess *are* the cardiogenic failure; flat-with-legs-raised worsens the oedema. The recorded gap concedes the tension-pneumothorax objection for the stab wound and does not address this, where the mechanism runs the other way |
+| — | Compensated shock has no discriminator | Correct to exclude capillary refill, but the replacement is the layperson-observable cluster (cold sweaty skin, grey or ashen, drowsiness, thirst), not cap refill |
+| — | The ratchet stops tracking a patient who **genuinely improves** | Post-ictal, hypoglycaemic after sugar, resolved faint. The right default for a field agent, but the clinician on the bridge has no channel to resolve it |
+| — | The spinal jaw-thrust is **CONTESTED** | Round 1 asked for the technique distinction; round 3 judged the wrong half safe to improvise. Both arguments are on record rather than one being silently chosen |
+
 ### B4 — Output schema gate
 
 `ClinicalTurn` Pydantic model, numeric-citation check against retrieved text, pre-rendered
