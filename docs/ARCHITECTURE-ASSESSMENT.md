@@ -299,9 +299,73 @@ Battle-testing means these are green, not that the design reads well.
 | **ASM-10** | A deteriorating patient forces re-entry at A; the ratchet is never violated by re-assessment |
 | **ASM-11** | `Criticality` still cannot express BLACK, and no path assigns an expectant category. Apneic + pulseless is **always** Criticality 5 + CPR |
 | **ASM-12** | No reachable path makes a pulse check a branch point. The 5 rescue breaths are unconditional |
-| **ASM-13** | Breathing is a three-state input - `normal` / `abnormal-or-gasping` / `none` - and both non-normal states route to CPR. No reachable path asks a bare yes/no breathing question |
+| **ASM-13** | **SCOPED, AND RE-SCOPED 18 Sept — see below.** Breathing is a three-state input - `normal` / `abnormal-or-gasping` / `none`. `abnormal-or-gasping` routes to CPR **only in a patient who is also unconscious** (ACVPU P or U): an *awake* patient breathing abnormally is never compressed and reaches the conscious-distress leaf. `none` routes to CPR **whatever responsiveness was reported**, because "awake" plus "not breathing at all" is a contradiction in which apnoea wins; the contradiction is re-tested inside the arrest instruction rather than resolved silently. The one exception is a *responsive* patient with an established **witnessed foreign body**, who reaches thrusts - a complete obstruction is the single state where both reports are accurate. No reachable path asks a bare yes/no breathing question |
 | **ASM-14** | The ratchet reads the certainty type: a level reached by assumption is correctable by later evidence, a level reached by evidence is not |
 | **ASM-15** | No assessment a bystander cannot perform appears on the responder path (Blocker 5's list: capillary refill, counted RR, auscultation, JVP, pupils, glucose, pulse pressure) |
+
+### Why ASM-13 is scoped (18 Sept)
+
+The row originally read *"both non-normal states route to CPR"*, full stop, and it was
+implemented that way — as a property of the breathing value alone. That is **a conclusion
+imported without its precondition**, the exact error `2026-09-17-clinical-safety.md`'s own
+closing lesson names, and it reached a harmful branch on complete inputs: an **ALERT**
+patient with abnormal or gasping breathing was told to receive chest compressions.
+
+The guideline is a **conjunction**, and this repo already stated it three times —
+`CLINICAL-STANDARDS.md` §1.2, `PulseReport`'s docstring, and the 17 Sept review itself:
+*"unresponsive **and** not breathing normally → compressions."* Agonal respiration is a
+brainstem reflex of a dead circulation; it does not coexist with A on ACVPU. The awake
+patients this caught — the asthmatic, the anaphylaxis, the pulmonary oedema, the partial
+obstruction — are common, and all are made **worse** by being laid flat and compressed.
+
+**Blocker 3 is not reintroduced by this scoping.** Its target was the *binary question*,
+and its failure mode is a **collapsed** patient whose caller answers "yes he's breathing".
+An unconscious patient with either non-normal state still routes to CPR with no gate at
+all. The precondition is now enforced by the **signature**: `routes_to_cpr` takes
+responsiveness, so there is no expression that reaches the CPR decision without naming the
+patient's consciousness. Pinned by
+`test_no_reachable_branch_compresses_the_chest_of_an_awake_patient`, which walks the whole
+input space, and by `test_the_cpr_decision_cannot_be_made_without_naming_consciousness`.
+
+### Why ASM-13 was RE-scoped, same day (18 Sept)
+
+The scoping above was applied **too widely**, and a second `readiness-field` clinical pass
+made it the lead finding. Gating *both* non-normal states on responsiveness meant a patient
+reported as **not breathing at all** but still called "alert" reached the conscious-distress
+leaf at **Criticality 4** — told to sit upright and use a reliever inhaler. Reproduced by
+execution, on complete inputs.
+
+The harm the conjunction prevents — compressions on a talking asthmatic — **only ever
+existed for `abnormal-or-gasping`**, which is how a conscious patient in respiratory
+distress actually presents. Nobody awake presents with `none`: apnoea beside an "alert"
+report is a stale or wrong responsiveness report, the likeliest error in the first sixty
+seconds of a panicking call, and resolving it toward the reassuring half is the fatal
+direction. So `none` ignores the reported responsiveness.
+
+**The contradiction is re-tested, not resolved silently.** Returning to
+`ASK_RESPONSIVENESS` was the reviewer's preferred option and was rejected: L2 is pure and
+holds no turn history (ASM-01), so a caller re-reporting the same two values gets the same
+question forever — Blocker 3(a)'s absorbing gate rebuilt on the patient with the least
+time. Instead the arrest rationale names the contradiction, quotes it back, and asks for
+the re-check **while compressions run**, which is Blocker 2's "do both; do not choose"
+applied to information rather than to bleeding.
+
+**One exception, and an independent review found it was needed twice over.** A *responsive*
+patient with an established **witnessed foreign body** keeps the choking instruction: a
+complete obstruction is the one state where "awake" and "moving no air" are both accurate,
+and compressions cannot shift a lodged bolus. The review then found that the *question*
+`ASK_AIRWAY_OBSTRUCTION` also has to outrank the arrest route — gating it on the arrest
+route meant a first-turn ALERT-plus-apnoea patient skipped the block and was never asked
+the discriminator at all, reintroducing Blocker 5's death through this very fix. The
+question decides the route, so it precedes it; `_reaches_choking_block` holds that fact
+once, and `_routes_to_arrest_path` consults it.
+
+`_is_arrest` carries the same asymmetry for the **category**, so the gate in front of the
+question cannot cap a reported arrest at SEVERE (Blocker 3(b)). Pinned by
+`test_absent_breathing_reaches_the_arrest_path_whatever_responsiveness_says`,
+`test_a_responsive_patient_is_asked_the_choking_question_before_compressions`,
+`test_a_witnessed_obstruction_still_reconciles_awake_with_no_breathing` and
+`test_the_apnoea_contradiction_is_not_re_asked_as_a_question`.
 
 ---
 

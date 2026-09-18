@@ -27,6 +27,7 @@ __all__ = [
     "FactKind",
     "LevelChange",
     "MarkerHit",
+    "Provenance",
     "TriageState",
     "find_markers",
     "hard_escalation_triggered",
@@ -64,6 +65,39 @@ class Criticality(IntEnum):
             5: "Immediately life-threatening. Clinician bridged without delay. "
             "Example: cardiac arrest, drowning, airway obstruction with no air movement.",
         }[int(self)]
+
+
+class Provenance(str, Enum):
+    """Whether a criticality level rests on evidence or on an assumption.
+
+    ASM-14, and the reason it needed real design work rather than a flag. The
+    ratchet below latches, which is correct for its original purpose: a calmer
+    later turn must not quietly downgrade a severe incident. But it latched
+    assumptions too, so a patient assumed-worst to 5 at minute one could not be
+    corrected at minute three *even by a clinician on the bridge*. Assumption-
+    driven and evidence-driven CRITICAL then became indistinguishable at the
+    ratchet - the exact conflation the certainty type in `assessment.py` exists
+    to prevent, in the one place that never read it.
+
+    Two members, not five. `assessment.Certainty` has five and is the richer
+    type; the ratchet needs only the line between "somebody reported this" and
+    "nobody did, and we took the worse branch on purpose". A third member here
+    would imply an ordering among assumptions that nothing has defined.
+
+    ASSUMPTION is the DEFAULT, deliberately. The safe failure for a caller that
+    has not thought about provenance is a level that a later genuine finding can
+    correct, not one welded in place by an omission. The exception is stated
+    where it matters: `set_level`'s callers that represent real reported speech
+    pass EVIDENCE explicitly, and L1 is one of them.
+    """
+
+    ASSUMPTION = "assumption"
+    EVIDENCE = "evidence"
+
+    @property
+    def is_correctable(self) -> bool:
+        """Whether a later evidence-grade finding may lower a level from this."""
+        return self is Provenance.ASSUMPTION
 
 
 class FactKind(str, Enum):
@@ -117,6 +151,15 @@ class LevelChange:
     rejected: bool
     rationale_updated: bool
     reason: str
+    #: True when this call LOWERED the level because the previous one rested on
+    #: an assumption and this one carries evidence. A distinct outcome from both
+    #: "raised" and "refused": it is the only way the level ever falls, and a
+    #: clinician reading the record needs to see that a correction happened
+    #: rather than infer it from two history entries. ASM-14.
+    corrected: bool = False
+    #: What the level now rests on. An ASSUMPTION level stays correctable; an
+    #: EVIDENCE level is final for the incident.
+    provenance: Provenance = Provenance.ASSUMPTION
 
     @property
     def should_persist(self) -> bool:
@@ -132,6 +175,12 @@ class TriageState:
     clock: Clock = SYSTEM_CLOCK
     level: Criticality = Criticality.MINOR
     rationale: str = "No assessment yet."
+    #: What the current level rests on. ASM-14. A fresh incident's MINOR is an
+    #: assumption - nobody has assessed anything - which is why the default is
+    #: ASSUMPTION rather than EVIDENCE. It makes no practical difference at
+    #: MINOR, since there is nothing below it to correct down to, but stating it
+    #: the other way round would make the floor read as a finding.
+    level_provenance: Provenance = Provenance.ASSUMPTION
     escalation: EscalationStatus = EscalationStatus.NOT_NEEDED
     escalation_reason: str | None = None
     escalation_key: str | None = None
@@ -164,18 +213,61 @@ class TriageState:
     def clinician_present(self) -> bool:
         return self.escalation is EscalationStatus.CLINICIAN_JOINED
 
-    def set_level(self, level: int, rationale: str, *, source: str = "model") -> LevelChange:
+    def set_level(
+        self,
+        level: int,
+        rationale: str,
+        *,
+        source: str = "model",
+        provenance: Provenance = Provenance.ASSUMPTION,
+    ) -> LevelChange:
         """Record a criticality assessment.
 
         Criticality ratchets upward within an incident: once a case has been
         assessed as severe, a later calmer turn does not quietly downgrade it.
-        Only an explicit clinician stand-down should lower it, which is out of
-        scope for the field agent.
 
         A refused downgrade changes nothing at all. The previous implementation
         returned False for it but had already overwritten the rationale and
         appended a second history entry, so a calmer turn rewrote the reasoning
         behind a severe assessment while reporting that nothing happened.
+
+        THE ONE EXCEPTION, AND WHY IT IS NARROW (ASM-14)
+        ------------------------------------------------
+        A level reached by ASSUMPTION is correctable by later EVIDENCE. A level
+        reached by evidence is not correctable by anything.
+
+        The defect this closes: the ratchet latched assumptions, so a patient
+        assumed-worst to 5 at minute one could not be corrected at minute three
+        even by a clinician who had since established the finding. That made
+        assumption-driven and evidence-driven CRITICAL indistinguishable at the
+        one place the distinction has consequences.
+
+        Note the asymmetry, which is the whole safety argument. This does NOT
+        make the ratchet negotiable:
+
+        - evidence lowering an assumption is a CORRECTION - somebody finally
+          established the thing we had been guessing at, and refusing it means
+          the record permanently overstates a patient nobody ever assessed;
+        - assumption lowering evidence is REFUSED - a guess does not overturn a
+          report, so the most dangerous direction is closed;
+        - evidence lowering evidence is REFUSED - two reports disagreeing is not
+          a correction, it is a deterioration or a recovery narrative, and
+          `phrases.py` owns the second of those. Standing an incident down on
+          conflicting reports is a clinician's call and stays out of scope;
+        - assumption lowering assumption is REFUSED - unchanged behaviour, and
+          the case every existing caller is in.
+
+        So the default is ASSUMPTION for the requesting side and the guard reads
+        the STORED provenance. A caller that passes nothing can neither perform
+        a correction nor suffer one, which is why every existing call site
+        behaves exactly as before.
+
+        L1 KEEPS OUTRANKING L2. A `phrases.py` marker fires on raw speech, and
+        what it establishes is evidence of what was SAID - the strongest input
+        this system has, and not something L2's arithmetic may revise.
+        `escalation.py` passes `Provenance.EVIDENCE`, so a marker-driven
+        CRITICAL is uncorrectable by anything L2 later computes. That ordering is
+        asserted by a test rather than left to this paragraph.
         """
         try:
             requested = Criticality(int(level))
@@ -188,13 +280,23 @@ class TriageState:
             ) from exc
 
         previous = self.level
+        previous_provenance = self.level_provenance
 
-        if requested < previous:
+        correcting = (
+            requested < previous
+            and previous_provenance.is_correctable
+            and provenance is Provenance.EVIDENCE
+        )
+
+        if requested < previous and not correcting:
             logger.info(
-                "Ignoring downgrade %d -> %d (%s); criticality ratchets upward",
+                "Ignoring downgrade %d -> %d (%s); criticality ratchets upward "
+                "(stored provenance=%s, requested provenance=%s)",
                 int(previous),
                 int(requested),
                 rationale,
+                previous_provenance.value,
+                provenance.value,
             )
             return LevelChange(
                 changed=False,
@@ -203,12 +305,23 @@ class TriageState:
                 rejected=True,
                 rationale_updated=False,
                 reason="criticality ratchets upward; downgrade refused",
+                corrected=False,
+                provenance=previous_provenance,
             )
 
         changed = requested != previous
         rationale_updated = rationale != self.rationale
+        # A re-assertion at the same level that HARDENS an assumption into
+        # evidence is a real event even when nothing else moved: it is the point
+        # after which the level can no longer be corrected downward. Recording
+        # it is what keeps the record's account of correctability accurate.
+        provenance_hardened = (
+            not changed
+            and previous_provenance.is_correctable
+            and provenance is Provenance.EVIDENCE
+        )
 
-        if not changed and not rationale_updated:
+        if not changed and not rationale_updated and not provenance_hardened:
             # Nothing new was said. Recording it would pad the timeline with
             # repetitions of an assessment that never moved.
             return LevelChange(
@@ -218,10 +331,19 @@ class TriageState:
                 rejected=False,
                 rationale_updated=False,
                 reason="no change",
+                corrected=False,
+                provenance=previous_provenance,
             )
 
         self.level = requested
         self.rationale = rationale
+        # Evidence hardens the level permanently. An assumption arriving on top
+        # of an already-evidenced level must NOT soften it back into something
+        # correctable, or a later guess could unlock a downgrade of a finding.
+        # `max` over the two is wrong here - the rule is one-way, so it is
+        # written as the one-way rule it is.
+        if provenance is Provenance.EVIDENCE or previous_provenance.is_correctable:
+            self.level_provenance = provenance
         self.updated_at = isoformat(self.clock.now())
         self.history.append(
             {
@@ -229,16 +351,28 @@ class TriageState:
                 "label": requested.label,
                 "rationale": rationale,
                 "source": source,
+                "provenance": self.level_provenance.value,
+                "corrected": correcting,
                 "at": self.updated_at,
             }
         )
+        if correcting:
+            reason = "assumption corrected by evidence"
+        elif changed:
+            reason = "level raised"
+        elif provenance_hardened:
+            reason = "reassessed at the same level; assumption hardened to evidence"
+        else:
+            reason = "reassessed at the same level"
         return LevelChange(
             changed=changed,
             previous=previous,
             current=requested,
             rejected=False,
             rationale_updated=rationale_updated,
-            reason="level raised" if changed else "reassessed at the same level",
+            reason=reason,
+            corrected=correcting,
+            provenance=self.level_provenance,
         )
 
     # ------------------------------------------------------- escalation lifecycle
@@ -329,6 +463,14 @@ class TriageState:
             "label": self.label,
             "definition": self.level.definition,
             "rationale": self.rationale,
+            # ASM-14 / ARCHITECTURE-ASSESSMENT.md §6: a CRITICAL reached because
+            # a finding was genuinely established and a CRITICAL reached because
+            # nothing could be established are clinically different events that
+            # would otherwise look identical on both UIs. The clinician joining
+            # the bridge needs to know which one they are walking into, and
+            # whether what they are looking at is still correctable.
+            "level_provenance": self.level_provenance.value,
+            "level_correctable": self.level_provenance.is_correctable,
             "escalation": self.escalation.value,
             "escalated": self.escalated,
             "clinician_present": self.clinician_present,

@@ -33,7 +33,7 @@ from typing import Awaitable, Callable
 from .phrases import MarkerHit, hard_escalation_triggered
 from .telemetry import span
 from .transcript import BYSTANDER, RESPONDER, UNKNOWN_SPEAKER, Utterance
-from .triage import Criticality, TriageState
+from .triage import Criticality, Provenance, TriageState
 
 __all__ = [
     "ESCALATING_SPEAKERS",
@@ -216,6 +216,19 @@ async def apply_hard_escalation(
             Criticality.CRITICAL,
             f"Hard trigger on reported phrase: {marker.matched_text!r}",
             source="rule",
+            # L1 OUTRANKS L2, and this argument is what keeps that true now that
+            # the ratchet reads provenance (ASM-14). A marker fired on the raw
+            # transcript is evidence of what was SAID - the strongest input this
+            # system has, and the one thing it does not need a model or an
+            # algorithm to interpret. Passing EVIDENCE makes the resulting
+            # CRITICAL uncorrectable: no later L2 branch, however confident its
+            # own inputs, can lower a level that a reported life threat set.
+            #
+            # Passing the default ASSUMPTION here would have inverted the layer
+            # ordering silently - L2 arithmetic would have been able to stand
+            # down a reported arrest - which is why it is passed explicitly
+            # rather than left to a default that happens to be right.
+            provenance=Provenance.EVIDENCE,
         )
         await on_state_change()
         await on_escalate(
