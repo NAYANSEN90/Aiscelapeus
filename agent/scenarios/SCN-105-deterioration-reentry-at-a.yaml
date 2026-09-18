@@ -1,0 +1,134 @@
+# A patient who deteriorates, forcing re-entry at A - and the ratchet that must
+# not let the record follow him back down.
+#
+# WHY THIS NEEDS A SCENARIO RATHER THAN A UNIT TEST. Every other property in
+# this suite is a function of one turn's inputs. This one is a property of the
+# SEQUENCE: the claim is that turn 3's level is 5 and stays 5, and that turn 1's
+# calm assessment cannot be reasserted over it. A single `decide` call cannot
+# express it, which is exactly why B5 exists - `decide` is pure and stateless,
+# and the ratchet lives in `TriageState`, so only something that carries state
+# across turns can assert the two of them together.
+#
+# THE ABCDE RE-ENTRY. The letters are structural rather than conventional: each
+# block in `decide` returns, so no later letter can be reached while an earlier
+# one is unresolved (ASM-03). There is no path that falls through to D while A
+# is open, because there is no expression for it. The consequence for a
+# deteriorating patient is that a NEW finding at an EARLIER letter pulls the
+# whole assessment back to that letter, and this file asserts the letter
+# travelling backwards - exposure, then disability, then breathing - as the
+# patient gets worse.
+#
+# THE LIMITATION, RECORDED RATHER THAN ASSERTED AWAY. The reverse of this
+# scenario - a patient who GENUINELY improves, post-ictal, hypoglycaemic after
+# sugar, a resolved faint - has no expression in this model, because improvement
+# is evidence lowering evidence and that is refused. The clinical review calls
+# that the right default for a field agent and records that "the clinician on
+# the bridge has no channel to resolve it". No turn here pretends otherwise.
+
+id: SCN-105-deterioration-reentry-at-a
+title: A walking-well patient who deteriorates into arrest
+traces_to: >
+  docs/reviews/2026-09-18-l2-clinical.md - the four removals ("START step 1
+  loses nothing for one patient: ALERT + NORMAL + no bleed reaches
+  INSTRUCT_MONITOR in the same number of turns") and the recorded limitation
+  that the ratchet stops tracking a patient who genuinely improves
+
+turns:
+  - responder: "He's had a fall off a ladder but he's up and talking, he says he's fine"
+    findings:
+      scene_safe: safe
+      responsiveness: alert
+      breathing: normal
+      severe_bleeding: none
+      airway_obstruction: none
+      spinal_risk: none
+      age_band: adult
+      submersion: false
+      exposure_reviewed: true
+    expect:
+      step: instruct_monitor
+      letter: exposure
+      criticality: 2
+      provenance: evidence
+      assumed_inputs: []
+      escalated: false
+      escalation_status: not_needed
+      marker: null
+    why: >
+      THE RAPID "THIS ONE IS FINE" READ, reached on evidence. This is the
+      clinical review's defence of removing START step 1's "can they walk?": the
+      walking check is a SORTING device whose entire output is "this person is
+      GREEN, move on", a decision that only exists with a queue, and its harm is
+      real - "see if he can stand" to a possible spine or pelvic injury. Nothing
+      is lost for one patient, because ALERT + NORMAL + no bleed reaches
+      `INSTRUCT_MONITOR` in the same number of turns. `letter: exposure` is the
+      proof it walked the whole alphabet to get here.
+
+      `criticality: 2` on EVIDENCE with no assumed inputs is the honest floor.
+      Not 1: a fall from a ladder is not self-limiting. And the level is final
+      for the incident precisely because every input was reported - which is
+      what makes the next two turns a deterioration rather than a correction.
+
+  - responder: "He's gone quiet on me, he's not responding now"
+    findings:
+      responsiveness: unresponsive
+    expect:
+      step: instruct_recovery_position
+      letter: disability
+      criticality: 5
+      escalated: true
+      escalation_status: requested
+      marker: unresponsive
+    why: >
+      RE-ENTRY AT D, AND THE RATCHET'S FIRST REAL TEST. The letter travels
+      backwards from exposure to disability, because a new finding at an earlier
+      letter cannot be deferred behind a later one. The step is the recovery
+      position - he is unconscious and breathing normally, and `spinal_risk` was
+      established as NONE in turn 1, so the technique question Blocker 4 raised
+      does not arise here.
+
+      The level is 5 and not 4, and the reason is the layer ordering: L1 heard
+      "not responding" and forced CRITICAL with `provenance=EVIDENCE`, so the
+      incident is CRITICAL one turn before L2 finds an arrest. L2's own branch
+      at this cell asks for SEVERE. A harness that read the criticality off the
+      BRANCH instead of off `TriageState` would report 4 here and the entire
+      ratchet would be invisible to this suite.
+
+  - responder: "He's making a horrible snoring gasping noise, it doesn't sound like breathing"
+    findings:
+      breathing: abnormal_or_gasping
+    expect:
+      step: instruct_cpr
+      letter: breathing
+      criticality: 5
+      escalated: true
+    why: >
+      RE-ENTRY AT B, AND THE ARREST. The letter travels back again, from
+      disability to breathing, and the patient who was "up and talking" three
+      turns ago is now in compressions. Agonal gasping described in the caller's
+      own words, and it routes.
+
+  - findings:
+      responsiveness: alert
+      breathing: normal
+    expect:
+      criticality: 5
+      escalated: true
+      escalation_status: requested
+    why: >
+      THE RATCHET, ASSERTED AS AN IMPOSSIBILITY RATHER THAN AS A NUMBER. This
+      turn feeds back EXACTLY the reassuring findings of turn 1 - alert, and
+      breathing normally - as established reports, which is the calm five
+      minutes the ratchet exists to survive. The incident stays at 5.
+
+      Note which direction is being refused. This is EVIDENCE lowering EVIDENCE,
+      and `set_level` refuses it: two reports disagreeing is not a correction,
+      it is a deterioration or a recovery narrative, and standing an incident
+      down on conflicting reports is a clinician's call. The one lowering the
+      ratchet does permit - later EVIDENCE correcting an earlier ASSUMPTION - is
+      not reachable here, because turn 1's level was already evidence-grade.
+
+      This turn deliberately supplies no `responder` text. It is the "quiet
+      turn" shape - a finding arriving without new speech - and it asserts that
+      the level does not need a marker to hold. A ratchet that only held while
+      L1 kept re-firing would not be a ratchet.

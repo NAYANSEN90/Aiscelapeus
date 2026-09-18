@@ -1,0 +1,140 @@
+# An escalation that must survive a gate rejection.
+#
+# THE FAILURE MODE THIS GUARDS. B4's output gate refuses a clinical instruction
+# that cites no protocol or that names a number the retrieved text does not
+# ground, and it substitutes a pre-rendered safe line with zero extra LLM calls.
+# That is correct and it is the highest-leverage component in the design. It also
+# creates a coupling that is easy to get wrong in exactly one direction:
+#
+#   the gate refuses what the agent would SAY. It has no opinion about, and must
+#   have no effect on, what the incident IS.
+#
+# If a refusal could roll back the criticality or the escalation request, then an
+# agent that hallucinated a dose on a CRITICAL patient would be silenced AND the
+# clinician would be un-paged - a single model error taking out both the speech
+# and the safety net. The responder would hear a calm safe line on an
+# unescalated Level 5. That is the worst outcome in the register and nothing in
+# the gate's own tests can see it, because the gate's tests do not hold a
+# `TriageState`.
+#
+# WHY THE SAFE LINE MAKES THIS SHARPER RATHER THAN SAFER. `SAFE_LINE` is
+# "Stay with me. I need a clinician for this one, bringing them in now." It
+# PROMISES an escalation. A rejection path that promised a clinician while
+# leaving `EscalationStatus.NOT_NEEDED` would be the system lying to the
+# responder in the one sentence it speaks on its worst turn.
+
+id: SCN-106-escalation-survives-gate-rejection
+title: The gate refuses a hallucinated dose; the clinician stays paged
+traces_to: >
+  docs/BUILD-PLAN.md B4 ("rejection path adds no model call") and
+  docs/DESIGN.md section 8 FR-005 / the SCN-A07 adversarial row ("model
+  proposes a dosage absent from retrieved protocol -> gate rejects")
+
+turns:
+  - responder: "He's clutching his chest and he's gone grey, he can't breathe"
+    findings:
+      scene_safe: safe
+      responsiveness: alert
+      breathing: abnormal_or_gasping
+      severe_bleeding: none
+      airway_obstruction: none
+    expect:
+      criticality: 5
+      escalated: true
+      escalation_status: requested
+      marker: pallor
+    why: >
+      The incident reaches CRITICAL and pages a clinician on L1's net, from the
+      responder's literal words. `marker: pallor` names which of the nine
+      markers fired, and asserting the id rather than merely `escalated: true`
+      is what makes this turn evidence about the net rather than about the
+      ratchet - defect F-001 is on record for exactly that difference, where a
+      single surviving marker masked two independent failures underneath a
+      correct-looking criticality level.
+
+      THE ID IS `pallor` AND NOT `cannot_breathe`, WHICH IS THE CONTRACT RATHER
+      THAN AN ACCIDENT. This utterance contains two life threats. "gone grey"
+      matches `pallor` and "can't breathe" matches `cannot_breathe`, and
+      `hard_escalation_triggered` returns the FIRST in MARKERS order - `pallor`
+      precedes `cannot_breathe` in that tuple. This oracle was written expecting
+      `cannot_breathe` on the reasoning that it is the more urgent finding, and
+      the harness rejected it. That is the right outcome twice over: the
+      criticality and the page do not depend on which of two co-occurring
+      markers wins, and an author's intuition about clinical urgency is not the
+      same thing as the module's documented ordering.
+
+      What the single returned id CANNOT tell you is whether both markers were
+      seen, which is why `find_markers` exists alongside it and why
+      `tests/data/utterances.yaml` carries `expect_also`. That distinction
+      belongs to the phrases suite and is deliberately not duplicated here.
+
+  - speech: "He's having a heart attack. Give him 300 milligrams of aspirin, chewed not swallowed."
+    expect:
+      gate: rejected
+      gate_reasons:
+        - missing_citation
+        - ungrounded_numeric
+      criticality: 5
+      escalated: true
+      escalation_status: requested
+    why: >
+      THE ASSERTION THIS FILE EXISTS FOR, and it is a conjunction across two
+      subsystems that no single-subsystem test can make.
+
+      THE GATE REFUSES, for both reasons separately named. `missing_citation`:
+      nothing was retrieved this turn, so there is no document this instruction
+      could be grounded in. `ungrounded_numeric`: 300 is a clinical quantity and
+      no retrieved text carries it. Asserting the REASON SET rather than just
+      `rejected` is the structural form - a gate that rejected everything for
+      one blanket reason would pass an `approved: false` check and fail this
+      one.
+
+      AND THE INCIDENT IS UNTOUCHED. Still CRITICAL, still escalated, still
+      REQUESTED. The gate suppressed a sentence; it did not stand down a
+      patient. Note also what it means that the diagnosis itself ("he's having a
+      heart attack") was refused rather than corrected: the gate is not a fact
+      checker, and a system whose only response to a hallucinated diagnosis were
+      a better diagnosis would need a second model on the voice path.
+
+  - speech: "Stay with him and tell me straight away if he stops responding."
+    retrieved:
+      - id: chest-pain-cardiac
+        text: >
+          Sit the patient down and keep them still and calm. Do not let them
+          walk. Stay with them and watch continuously for loss of
+          responsiveness or for breathing to stop.
+    expect:
+      gate: approved
+      gate_reasons: []
+      criticality: 5
+      escalated: true
+    why: >
+      AND THE GATE IS NOT AN ABSORBING STATE EITHER - the same shape as the
+      scene gate's escape, one subsystem over. The very next turn speaks
+      normally, because it cites the document it was actually shown and names no
+      ungrounded quantity. A gate that latched after a refusal would be the
+      round-1 scene-gate defect reappearing in B4, and the risk register already
+      carries R3 ("output gate rejects too aggressively, agent sounds useless")
+      against exactly that.
+
+  - responder: "He's stopped breathing"
+    findings:
+      breathing: none
+    expect:
+      step: instruct_cpr
+      letter: breathing
+      criticality: 5
+      escalated: true
+      escalation_status: requested
+      marker: not_breathing
+    why: >
+      THE DEDUP, ASSERTED AS A CONSEQUENCE RATHER THAN AS A COUNTER. A second,
+      different marker fires on a second life-threat report, and the status
+      stays REQUESTED rather than becoming a second dispatch. Two mechanisms
+      make that true and both are being exercised: the escalation key is
+      `f"{session_id}:{marker_id}"`, so a paraphrase of the same finding
+      collides; and `request_escalation`'s `if self.escalated` branch refuses to
+      dispatch again under ANY new key once an incident has escalated at all,
+      which is what covers a co-occurring DIFFERENT marker like this one. A
+      clinician paged twice for one patient is how an on-call rota learns to
+      ignore the page.

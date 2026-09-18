@@ -1,0 +1,96 @@
+# An apnoeic patient reported as "alert" - the contradiction, and the test that
+# once defended the wrong resolution of it.
+#
+# THE HISTORY MATTERS HERE MORE THAN ANYWHERE ELSE IN THE SUITE. Round 2 found
+# that `routes_to_cpr` gated on responsiveness for BOTH non-normal breathing
+# states, including NONE:
+#
+#     scene=SAFE, responsiveness=ALERT, obstruction=NONE, breathing=NONE
+#       -> INSTRUCT_SUPPORT_SEVERE_BREATHING_DIFFICULTY, Criticality 4
+#       "Do NOT start compressions... Sit them upright... use their OWN inhaler."
+#
+# To a patient reported as not breathing at all. The conjunction was imported
+# faithfully, but the failure it guards - compressions on a talking asthmatic -
+# only ever existed for ABNORMAL_OR_GASPING.
+#
+# AND IT WAS WORSE THAN A LATENT HOLE.
+# `test_no_reachable_branch_compresses_the_chest_of_an_awake_patient` walked the
+# awake space demanding no compressions anywhere in it, so a future author who
+# spotted the apnoea case would break two named tests and conclude THEY were
+# wrong. Round 3 called it "the repo's recurring failure mode inverted - not a
+# vacuous test, a test that DEFENDS a defect", and it is the fourth of the five
+# instances of this project's signature shape.
+#
+# THE CORRECT RESOLUTION, per round 2: apnoea in a patient still called "alert"
+# is a STALE OR WRONG RESPONSIVENESS REPORT - the most likely error in the first
+# sixty seconds of a panicking call - and the right handling of a contradiction
+# between "alert" and "not breathing" is to RE-TEST the contradiction, not to
+# resolve it silently in favour of the reassuring half.
+
+id: SCN-104-apnoeic-reported-alert
+title: Patient reported alert and not breathing at all
+traces_to: >
+  docs/reviews/2026-09-18-l2-clinical.md round 2 defect 1 ("the awake-gasping
+  fix is one notch too wide, and the suite PINS the defect") and round 3
+  ("the apnoea routing is correct at BOTH the category and the instruction")
+
+turns:
+  - responder: "My wife's collapsed but she's awake, she's looking at me"
+    findings:
+      scene_safe: safe
+      responsiveness: alert
+    expect:
+      step: ask_airway_obstruction
+      letter: airway
+      criticality: 4
+      marker: null
+    why: >
+      The awake patient reaches the airway question. Nothing controversial yet -
+      this turn establishes the "alert" report that the next turn contradicts.
+
+  - responder: "She's not breathing though, her chest isn't moving at all"
+    findings:
+      breathing: none
+    expect:
+      step: ask_airway_obstruction
+      letter: airway
+      criticality: 5
+      escalated: true
+      escalation_status: requested
+      marker: not_breathing
+    why: >
+      THE TWO ASSERTIONS THAT CLOSE ROUND 2'S DEFECT, and they are different
+      claims about different layers.
+
+      FIRST, THE CATEGORY. `criticality: 5`. Round 3 confirmed `_is_arrest`
+      carries the same asymmetry as `Breathing.NONE`'s routing, "so the choking
+      gate no longer caps a reported arrest at SEVERE". A reported apnoea is
+      CRITICAL regardless of what responsiveness says, because the reassuring
+      half of a contradiction does not get to set the level.
+
+      SECOND, THE STEP. It is the airway QUESTION, not
+      `instruct_support_severe_breathing_difficulty`. Round 3 called
+      question-outranks-arrest-route "the subtlest decision in the file" and
+      judged it right: `ASK_AIRWAY_OBSTRUCTION` wins because it DECIDES the
+      route - a witnessed bolus and an asthma attack diverge here - and
+      `_reaches_choking_block` holds that reading in one predicate consulted by
+      both sites so the two cannot drift. What must never happen again is the
+      inhaler instruction to an apnoeic patient, and a step assertion is how
+      that is pinned without pinning the wording.
+
+  - responder: "No, nobody saw her eat anything, she just went down"
+    findings:
+      airway_obstruction: none
+    expect:
+      step: instruct_cpr
+      letter: breathing
+      criticality: 5
+      escalated: true
+    why: >
+      THE QUESTION RESOLVED, AND THE ROUTE TAKEN. With the obstruction excluded,
+      a reported apnoea reaches compressions from an ALERT responsiveness value
+      - which is precisely the cell round 2 found returning "do NOT start
+      compressions" and round 3 confirmed fixed. If `routes_to_cpr` ever
+      re-acquires a responsiveness gate on `Breathing.NONE`, this turn fails,
+      and the test that used to defend that defect is no longer the only thing
+      looking at this cell.

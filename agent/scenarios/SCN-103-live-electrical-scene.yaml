@@ -1,0 +1,152 @@
+# A live-electrical scene - round 3's Blocker 3, pinned at the step.
+#
+# THE DEFECT THIS GUARDS WAS CREATED BY A FIX. While `SceneSafety` was a
+# two-value verdict and `UNSAFE` blocked everything, live electricity was
+# LATENT. The three-state scene fix removed the absorbing loop - correctly, a
+# caller in a lay-by who answers "no, cars are going past" truthfully must not be
+# told to move to safety forever - and in doing so made the electrical case
+# REACHABLE ALL THE WAY TO `INSTRUCT_CPR`.
+#
+# `_hazard_suffix` said "keep them watching for it... get clear if it closes in",
+# which describes a hazard that moves TOWARD you. It does not describe one you
+# are about to place both hands on. A bystander who said "there's a live cable,
+# I'm already next to him" was told to compress. CPR on a patient still in
+# circuit electrocutes the rescuer: two casualties instead of one, which is the
+# precise outcome the DR gate exists to prevent.
+#
+# THE FIX HAS AN ARITY, not a warning string. `HazardClass` distinguishes a
+# hazard you can work beside (ADJACENT) from one that is IN the patient
+# (IN_PATIENT) from one that is consuming the scene (CONSUMING). The information
+# was already collected - the pinned question enumerates traffic, fire and
+# electricity - and was then discarded into a two-value verdict. This file
+# asserts that it is no longer discarded.
+
+id: SCN-103-live-electrical-scene
+title: Arrest with a live cable across the patient
+traces_to: >
+  docs/reviews/2026-09-18-l2-clinical.md round 3, Blockers 3-5 - "live
+  electricity must be re-weighted, not merely recorded"; and round 2's
+  "SceneSafety cannot distinguish a hazard you can work beside from a hazard
+  that is IN the patient"
+
+turns:
+  - responder: "He's down in the substation yard, there's a cable lying across his chest"
+    findings:
+      scene_safe: unsafe_in_patient
+    expect:
+      step: instruct_break_electrical_contact
+      letter: airway
+      criticality: 4
+      marker: null
+    why: >
+      THE ASSERTION, AND IT IS A NEGATIVE ONE MADE POSITIVELY. The step is
+      `instruct_break_electrical_contact`, which means it is NOT
+      `instruct_make_scene_safe` (telling the bystander to move away from a
+      patient they are already beside) and NOT `instruct_cpr` (killing the
+      bystander). Asserting the step rather than searching the rationale for the
+      word "electricity" is deliberate: a reviewer here already defeated a
+      banned-phrase list by rephrasing while keeping every required substring,
+      and passed all 100 tests. The step is the property; the wording is an
+      instance of it.
+
+  - responder: "He's not moving and he's not breathing"
+    findings:
+      responsiveness: unresponsive
+      breathing: none
+    expect:
+      step: instruct_break_electrical_contact
+      letter: airway
+      criticality: 5
+      provenance: evidence
+      escalated: true
+      escalation_status: requested
+      marker: not_breathing
+    why: >
+      AN ESTABLISHED ARREST BEHIND A LIVE CIRCUIT, and both halves of the
+      answer matter. The criticality is 5, not 4: Blocker 3(b) of round 1 was
+      that the scene gate ASKED FOR SEVERE on a known arrest, and a gate that
+      lowers the criticality of an arrest is a gate that hides it from the
+      clinician. And the step STILL does not become CPR - isolating the supply
+      outranks compressions for as long as the patient is the conductor, which
+      is the whole distinction `HazardClass.IN_PATIENT` was widened to carry.
+
+      L1 has meanwhile forced CRITICAL on "not breathing" with
+      `provenance=EVIDENCE`, so this level is uncorrectable by any later L2
+      arithmetic. That ordering is why `escalation.py` passes EVIDENCE
+      explicitly rather than taking the ASSUMPTION default.
+
+  - responder: "I'm back from the road, there's traffic going past him now but I'm not next to him"
+    findings:
+      scene_safe: unsafe_adjacent
+    expect:
+      step: instruct_make_scene_safe
+      letter: airway
+      criticality: 5
+      provenance: evidence
+    why: >
+      THE OTHER ARITY, AND THE MUTANT THAT FOUND THIS TURN. An ADJACENT hazard -
+      one you can work beside, or retreat from - blocks patient contact, so the
+      instruction is to make the scene safe. This is a DIFFERENT rule from the
+      in-patient case above: there, touching the patient is the mechanism of
+      injury and no amount of commitment changes that; here, the hazard is
+      external and the bystander is not yet exposed.
+
+      This turn exists because a mutant survived without it. Forcing
+      `SceneSafety.blocks_patient_contact` to return False left all three
+      in-patient turns above passing while silently changing 60 of 150
+      scene/responsiveness/breathing/bleeding cells - every one of them in the
+      adjacent and consuming families. The scenario asserted the hazard
+      CLASSIFICATION and not the BLOCKING, so a fix to one could regress the
+      other invisibly. Recorded rather than quietly patched, because "the mutant
+      that found the gap" is the only honest provenance for an assertion.
+
+      The criticality stays 5. Blocker 3(b): the gate must never lower the
+      criticality of a known arrest, whatever it does about the instruction.
+
+  - responder: "I'm right next to him now, I'm staying put, someone else is slowing the cars"
+    findings:
+      scene_safe: unsafe_adjacent_committed
+    expect:
+      step: instruct_cpr
+      letter: breathing
+      criticality: 5
+      escalated: true
+    why: >
+      THE ESCAPE HATCH, THROUGH THE ONE INPUT THAT OPENS IT. Round 1's Blocker
+      3(1) was that `scene_safe=False` never advanced: "a caller already at the
+      patient's side in a lay-by who answers 'no, cars are going past'
+      TRUTHFULLY is told to move to safety, forever. The gate kills the patient
+      it was meant to protect, precisely when the bystander has already taken
+      the risk and is not going to un-take it."
+
+      `UNSAFE_ADJACENT_COMMITTED` is the fix, and this turn is the assertion
+      that it reaches compressions. Note the contrast with the in-patient case
+      three turns up: commitment opens the gate for a hazard beside you and does
+      NOT open it for a hazard in the patient, because no amount of accepted
+      risk makes completing a circuit survivable. Two hazards, two answers, one
+      enum - which is the whole argument for widening it rather than appending a
+      warning string.
+
+      Round 2 recorded that "the committed-unsafe escape hatch is unreachable by
+      the pinned phrasing" - it appears only in the INSTRUCT_MAKE_SCENE_SAFE
+      rationale, so the only route is to be told to leave and then push back.
+      That is a question-wording gap, not a routing gap, and this scenario
+      asserts the routing. The wording gap stays open and is named here so a
+      green run is not mistaken for closing it.
+
+  - responder: "The power's off, the substation guy pulled the isolator"
+    findings:
+      scene_safe: safe
+    expect:
+      step: instruct_cpr
+      letter: breathing
+      criticality: 5
+      escalated: true
+    why: >
+      AND THE GATE IS NOT AN ABSORBING STATE. This is the other half of Blocker
+      3, and the half that made the electrical case reachable in the first
+      place: once the hazard is resolved the machine advances immediately to the
+      arrest it already knew about. A gate that could not clear would be the
+      round-1 defect ("the gate kills the patient it was meant to protect"); a
+      gate that cleared too early would be the round-3 defect. Both directions
+      are asserted, in this file, three turns apart.

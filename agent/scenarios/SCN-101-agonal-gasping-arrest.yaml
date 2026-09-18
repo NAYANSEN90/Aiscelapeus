@@ -1,0 +1,104 @@
+# A cardiac arrest the caller reports as breathing.
+#
+# THE CLINICAL FACT THIS PINS. Agonal gasping is present in roughly 40 % of
+# witnessed arrests, and a lay caller reports it as breathing - "he's taking
+# these big gulping breaths" reads to them as the reassuring half. An algorithm
+# that accepts "breathing" at face value withholds compressions from the one
+# patient for whom every minute costs about ten percent of survival.
+#
+# The three-state `Breathing` enum is the fix, and it is the fix the clinical
+# review ranked as an upgrade rather than a loss: RR 28 vs 34 straddles START's
+# RED boundary and no bystander can resolve it, but "normal, or occasional noisy
+# gasps, or nothing" captures the only respiratory distinction that changes a
+# bystander's action.
+
+id: SCN-101-agonal-gasping-arrest
+title: Collapse with agonal gasping, reported as breathing
+traces_to: >
+  docs/reviews/2026-09-18-l2-clinical.md, "Strengths" - the arrest path is safe
+  structurally rather than by convention, and round 3's "all 72
+  unresponsive/PAIN cells resuscitate"
+
+turns:
+  - responder: "Something's wrong with my dad, he's on the kitchen floor"
+    expect:
+      step: ask_scene_safe
+      criticality: 4
+      letter: airway
+      provenance: assumption
+      marker: null
+    why: >
+      DR before ABC, and the very first act is the scene - not because this
+      kitchen is dangerous but because the gate has no way to know yet. The
+      level is already SEVERE on an ASSUMPTION: nobody has assessed anything, so
+      the machine takes the worse branch and says so, and `provenance:
+      assumption` is what leaves a clinician able to correct it later. Nothing
+      escalates: "something's wrong" is not a life-threat marker and a net that
+      fired on it would fire on every call.
+
+  - responder: "No, the kitchen's fine, there's nothing dangerous"
+    findings:
+      scene_safe: safe
+    expect:
+      step: ask_responsiveness
+      letter: airway
+      criticality: 4
+    why: >
+      The gate cleared in one turn and advanced. This is the half of Blocker 3
+      that stays: DR before ABC is right, and a rescuer electrocuted across a
+      downed cable produces two dead people. What the fix removed was the
+      absorbing state, not the gate.
+
+  - responder: "I'm shaking him and he's not responding"
+    findings:
+      responsiveness: unresponsive
+    expect:
+      step: ask_breathing_quality
+      letter: breathing
+      criticality: 5
+      escalated: true
+      escalation_status: requested
+      marker: unresponsive
+    why: >
+      THE LAYER ORDERING, AND IT IS THE POINT OF THIS TURN. L2 is still only
+      asking about breathing - it has no arrest yet. L1's deterministic net has
+      already heard "not answering" and forced CRITICAL with
+      `provenance=EVIDENCE`. So the incident is a 5 and a clinician is paged one
+      whole turn before the algorithm reaches the arrest, which is exactly what
+      the deterministic net is for: it does not need a model or an algorithm to
+      interpret what was said.
+
+  - responder: "He's taking these big gulping breaths, is that alright?"
+    findings:
+      breathing: abnormal_or_gasping
+    expect:
+      step: instruct_cpr
+      letter: breathing
+      criticality: 5
+      escalated: true
+    why: >
+      THE ASSERTION THIS WHOLE FILE EXISTS FOR. The caller has just offered the
+      reassuring reading of the single most reliable sign of arrest, and the
+      machine answers with compressions. If `Breathing` ever collapses back to a
+      bool, or if `ABNORMAL_OR_GASPING` stops routing to CPR for an unresponsive
+      patient, this turn fails and this patient dies.
+
+  - speech: "Push hard and fast in the centre of his chest, about two compressions a second."
+    retrieved:
+      - id: cpr-adult
+        text: >
+          Place the heel of one hand in the centre of the chest. Compress hard
+          and fast, about two compressions per second, allowing the chest to
+          recoil fully between compressions.
+    expect:
+      gate: approved
+      gate_reasons: []
+      criticality: 5
+    why: >
+      B4's gate, on the instruction this arrest actually produces. It is a
+      `clinical_instruction`, so it needs a cited protocol, and it has one. The
+      rate is spoken as a rate rather than as a number the corpus would have to
+      ground - which is the honest way past the citation rule, and the reason
+      this turn asserts `gate_reasons: []` rather than merely `approved`: an
+      empty reason set is the structural claim that NO rule fired, where
+      `approved` alone would still pass if the gate had been gutted.

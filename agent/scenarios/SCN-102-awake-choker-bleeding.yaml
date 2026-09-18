@@ -1,0 +1,111 @@
+# The awake choker who is also bleeding - round 3's Blocker 1, pinned.
+#
+# WHAT THIS GUARDS, AND WHY IT IS THE SUBTLEST ROW IN THE REGISTER. The C-ABC
+# reordering (Blocker 1 of round 1) hoisted an established bleed in front of the
+# responsiveness and breathing gates, because exsanguination is measured in two
+# to three minutes and the airway of a talking patient is self-evidently patent.
+# Correct - and the justification has a premise: "a patient who can be asked
+# about is a patient with an airway."
+#
+# Round 3 found the bleed hoist applied OUTSIDE that premise. With breathing
+# established as NONE and a witnessed foreign body, the hoist still won, and the
+# spoken rationale ended "keep the hands on the wound while answering anything
+# else" - actively instructing the bystander not to act on the airway while a
+# conscious person with a lodged bolus and zero air movement arrests in front of
+# them. No test pinned the established-NONE variant. This file pins the
+# conscious-choker variant of the same conflict.
+#
+# THE RESOLUTION IS NOT A FORCED CHOICE, and that is the clinical claim being
+# asserted. `INSTRUCT_CONTROL_BLEEDING_THEN_CLEAR_AIRWAY_OBSTRUCTION` exists
+# because the module already proved the choice is avoidable for the unresponsive
+# twin of this patient: a knee, body weight, or a tourniquet over packing frees
+# both hands, and abdominal thrusts need both hands.
+
+id: SCN-102-awake-choker-bleeding
+title: Awake patient choking on a witnessed foreign body, with a major bleed
+traces_to: >
+  docs/reviews/2026-09-18-l2-clinical.md round 3, Blocker 1 - "the bleed hoist
+  outranks the airway on a patient who has no airway"; and round 2's
+  "ASK_AIRWAY_OBSTRUCTION is the best-written question in the module"
+
+turns:
+  - responder: "He's awake but something's badly wrong, he's clutching his throat"
+    findings:
+      scene_safe: safe
+      responsiveness: alert
+    expect:
+      step: ask_airway_obstruction
+      letter: airway
+      criticality: 4
+      provenance: assumption
+      marker: null
+    why: >
+      With the scene safe and the patient alert, the machine asks about the
+      airway first. Round 2 called this the best-written question in the module,
+      and for a reason that is invisible from the step name: pairing "did
+      somebody SEE this start" with "can he answer you?" discriminates choking
+      AND silently re-tests a possibly-wrong "he's alert" report. A real
+      dispatcher re-tests invisibly; they never tell a caller they contradicted
+      themselves.
+
+  - responder: "There's blood everywhere, it's pouring out of his arm"
+    findings:
+      severe_bleeding: present
+    expect:
+      step: instruct_control_bleeding
+      letter: circulation
+      criticality: 4
+    why: >
+      THE C-ABC HOIST, CORRECT HERE. Breathing is still UNKNOWN and the patient
+      is still talking, so the premise holds: a patient who can be asked about
+      is a patient moving some air, and the femoral-bleed case (round 1's
+      Blocker 1) is the one where asking about the chest costs the bystander
+      their hands on the wound. The bleed wins, and it should.
+
+  - responder: "He's making these awful strangled noises now, he can't get a word out"
+    findings:
+      breathing: abnormal_or_gasping
+      airway_obstruction: witnessed_foreign_body
+    expect:
+      step: instruct_control_bleeding_then_clear_airway_obstruction
+      letter: airway
+      criticality: 4
+      provenance: evidence
+      assumed_inputs: []
+    why: >
+      THE ASSERTION THIS FILE EXISTS FOR, and it is structural rather than a
+      word match. Once the obstruction is established, the step must treat BOTH
+      - `letter: airway` says the airway is what is now unresolved, and the
+      combined step is what names the hands-free bleeding options that make
+      thrusts performable. If this ever regresses to plain
+      `instruct_control_bleeding`, the bystander is told to keep both hands on a
+      wound while the patient asphyxiates, and this turn fails.
+
+      `provenance: evidence` with an empty `assumed_inputs` is the second half:
+      every input on this path was reported, so the level is final for the
+      incident and a clinician cannot be handed a CRITICAL nobody assessed. That
+      is ASM-14 the right way round, and round 3's Blocker 2 found sixteen of
+      eighteen steps getting it wrong before `_Consulted` made the recording
+      happen where the read happens.
+
+  - speech: "Keep the pressure on that arm with your knee, and give him five sharp blows between the shoulder blades."
+    retrieved:
+      - id: airway-choking-adult
+        text: >
+          For a conscious adult who cannot speak, cough or breathe, deliver up
+          to five sharp blows between the shoulder blades with the heel of your
+          hand, then up to five abdominal thrusts.
+      - id: bleeding-severe
+        text: >
+          Apply firm direct pressure to the wound. Body weight through a knee
+          sustains more pressure than an untrained rescuer's arms, and frees
+          both hands.
+    expect:
+      gate: approved
+      gate_reasons: []
+    why: >
+      Both halves of the instruction are cited, from the two documents actually
+      retrieved this turn. `RetrievedThisTurn` accumulates within a turn by
+      design - the model may look up airway then bleeding, both documents were
+      genuinely shown to it, and both are citable - so this turn also asserts
+      that union rather than replacement.
