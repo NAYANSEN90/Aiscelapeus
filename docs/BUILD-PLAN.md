@@ -271,7 +271,44 @@ doc-ID collision on resume via `ConnectOutcome.resumed_existing_session`.
 > Exhaustive walk over 373,248 combinations. Four rounds of mutation testing; two rules were
 > **deleted** rather than kept as unproven code when their mutants survived.
 
-### L2 follow-ups — open, and deliberately NOT bundled
+### L2 follow-ups — **all three CLOSED** (18 Sept)
+
+Each landed as its own commit, because the round-3 reviewer was explicit they must not be
+bundled. Each was fixed, independently reviewed, and each review found a defect *in the fix*.
+
+| # | Commit | What it closed, and what the fix itself got wrong first |
+|---|---|---|
+| **3** | `ed8b232` | `SceneSafety` conflated hazard classes, so a **live conductor reached compressions**. Now `HazardClass` (ADJACENT / IN_PATIENT / CONSUMING), and the escape hatch is refused by the **absence** of an `UNSAFE_IN_PATIENT_COMMITTED` member rather than a runtime check. Its clinical reviewer then found the fix had left `INSTRUCT_MAKE_SCENE_SAFE` hazard-agnostic — **the only step a fire scene reaches** — so every word of the CONSUMING guidance was dead code behind 98 passing tests. |
+| **4** | `4cd5147` | `_contradiction_clause` told the caller they had contradicted themselves mid-compression. Now an observation folded into the action. Its reviewer defeated the first fix's banned-phrase list by **rephrasing while keeping every required substring** — it passed all 100 tests. Closed structurally: **relitigation is a referent, not a vocabulary**, so the clause may not refer to the caller's report at all. |
+| **5** | `4d56261` | The deterioration rule commanded flat-with-legs-raised off "pale, grey, clammy or faint" — signs that are the shared final common path of four different mechanisms and **name none of them**. For pulmonary oedema it guessed in the direction that worsens the failure it had just detected. Now it commands **no destination**, and distinguishes *holding* from *falling*. Its reviewer built a mutant that **survived all 110 tests** — Trendelenburg via "ankles up on a rucksack" — and a worse sibling needing no anatomy at all, which delivered the harm **through retrieval**. |
+
+**The transferable lesson across all three:** a test that enumerates bad instances loses to a
+rephrasing. Assert the *property* — no body part named, no elevation expressed, no protocol
+named whose action is the harm; no referent pointing at the caller's report.
+
+### Remaining L2 gaps — recorded, not blocking
+
+| Item | Note |
+|---|---|
+| Compensated shock has no discriminator | Correct to exclude capillary refill; the replacement is the layperson-observable cluster, not cap refill |
+| The ratchet stops tracking a patient who **genuinely improves** | Right default for a field agent; the clinician on the bridge has no channel to resolve it |
+| The spinal jaw-thrust is **CONTESTED** | Round 1 asked for the distinction; round 3 judged the wrong half safe to improvise. Both arguments on record |
+| `_hazard_suffix` repetition, and a responder who never makes the requested observation | **Both need one turn-aware layer above L2**, which is pure and holds no history by ASM-01. Worth treating as a single subsystem rather than two patches |
+| `VOCAL` / `CONFUSED` reach the distress leaf with `ALERT`'s text | Pre-existing routing; needs a scoped decision about whether they belong there |
+
+### Corpus gaps surfaced by blocker 5 — **new**
+
+Verified by grep while refusing to defer positioning to a protocol: **`protocols.py` holds no
+pulmonary-oedema document and no asthma document.** Its only leg-raise rule
+(`shock-management`) is explicitly volume-scoped, and `chest-pain-cardiac` says to sit a
+breathless cardiac patient *down*.
+
+So retrieval's best available hit for an awake patient in respiratory failure is a
+**hypovolaemia** document whose action is flat-with-legs-raised — which is why blocker 5's
+third test forbids the leaf from naming any protocol. **The same shape as the paediatric gap:
+a decision the machine can make against guidance that does not exist.**
+
+
 
 The round-3 reviewer was explicit that these are separate scoped changes.
 
