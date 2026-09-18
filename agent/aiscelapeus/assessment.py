@@ -203,21 +203,30 @@ not rediscover them as surprises. A test asserts each one stays recorded.
   INSTRUCT_CONTROL_BLEEDING forever, because nothing can ever report that the
   pressure worked. That is the same absorbing-loop shape the scene-gate fix
   killed, still live on the C letter.
-- `_contradiction_clause`'s WORDING IS A DEFECT ALTHOUGH ITS ROUTING IS RIGHT.
-  Found by the third clinical review. The decision to re-test the contradiction
-  inside the instruction rather than spend a question turn on it is correct and
-  is not what is being recorded here - the WORDS are. "NOTE THE CONTRADICTION
-  AND SAY IT OUT LOUD", "those two things cannot both be true" and "tell them
-  what they told you" instruct the operator to RELITIGATE THE CALLER'S REPORT
-  mid-compression, with a bystander who is already at the limit of what they can
-  do and who now has to defend what they said. A real dispatcher re-tests
-  invisibly: they ask a question whose answer settles it without ever announcing
-  that the caller was wrong, which is exactly what `ASK_AIRWAY_OBSTRUCTION`
-  already does one block earlier with "can he answer you?" - and the module
-  therefore already contains the pattern this clause should have used. Closing
-  it is a rewrite of the clause's words to an invisible re-test in that shape,
-  and it changes no routing, which is why it is recorded rather than bundled
-  into a routing fix.
+- `_contradiction_clause`'s WORDING IS FIXED, AND ITS ROUTING WAS NEVER THE
+  DEFECT. BLOCKER 4 OF THE THIRD CLINICAL REVIEW. Recorded here rather than
+  deleted because this entry used to describe an OPEN gap and the next author
+  needs to know which half moved. The routing - absent breathing reaching the
+  arrest path from every responsiveness value, and the contradiction re-tested
+  inside the instruction instead of spending a question turn that would be an
+  absorbing loop in a pure function - is correct and is untouched. The WORDS
+  were the defect: "NOTE THE CONTRADICTION AND SAY IT OUT LOUD", "those two
+  things cannot both be true" and "tell them what they told you" instructed the
+  operator to RELITIGATE THE CALLER'S REPORT mid-compression, with a bystander
+  already at the limit of what they can do who now had to defend what they said,
+  and "do not stop compressions" was a mitigation bolted onto a sentence that
+  invited the stop. A real dispatcher re-tests invisibly: they ask a question
+  whose ANSWER settles it without ever announcing that the caller was wrong,
+  which is what `ASK_AIRWAY_OBSTRUCTION` already does one block earlier with
+  "can he answer you?". Closed by rewriting the clause into that register - an
+  observation request folded into the action under way ("keep compressing;
+  watch his face and tell me if he tries to speak, opens his eyes or moves on
+  purpose") with no meta-commentary about what was said. THE RE-TEST ITSELF WAS
+  NOT DELETED: a wrong responsiveness report is the likeliest error in the first
+  sixty seconds and the answer changes the branch, so the contradiction is still
+  surfaced; only the announcement of it is gone. WHAT REMAINS: L2 pins the words
+  and cannot verify L3 spoke them, which is the general limit on every pinned
+  phrasing here and not specific to this one.
 - LEG-RAISING ON DETERIORATION IS NOT CLEARLY RIGHT FOR A PENETRATING CHEST
   INJURY. Defect 4's fix gives one deterioration rule - if they go pale, grey,
   clammy or faint, lower them and raise the legs - because L2 cannot tell which
@@ -2875,6 +2884,35 @@ def _contradiction_clause(path: _Consulted, breathing: Breathing) -> str:
     clause states a claim about absent breathing specifically, and a future
     routing change that brought an awake gasping patient here would otherwise
     have them told their reports contradict when they do not.
+
+    THE RE-TEST IS INVISIBLE, AND THAT IS BLOCKER 4 OF THE THIRD CLINICAL
+    REVIEW. The routing above is unchanged and was never the defect; the WORDS
+    were. The clause used to open "NOTE THE CONTRADICTION AND SAY IT OUT LOUD",
+    assert that the two reports "cannot both be true", and instruct the operator
+    to "tell them what they told you" - which makes the responder RELITIGATE
+    their own report while their hands are on a chest, and then tries to hold
+    the damage back with "do not stop compressions to settle it". That
+    mitigation is bolted onto a sentence that invites the stop; the sentence
+    should not invite it.
+
+    A real dispatcher never tells a caller they contradicted themselves. They
+    ask a question whose ANSWER settles it, folded into the action already under
+    way, and the caller corrects themselves without ever being told they were
+    wrong. The module already contains that pattern one block earlier:
+    `ASK_AIRWAY_OBSTRUCTION` re-tests this identical wrong "he's alert" report
+    with "can he answer you?", and the previous round called it the best-written
+    question here for exactly that reason. This clause is now written in that
+    register - an observation request ("keep going, and while you do, tell me
+    if...") rather than a meta-statement about what was said.
+
+    THE RE-TEST ITSELF IS NOT OPTIONAL and is not what was deleted. A wrong
+    responsiveness report is the likeliest error in the first sixty seconds and
+    the answer CHANGES THE BRANCH, so the contradiction genuinely has to be
+    surfaced; what is deleted is the announcement of it. The observation asked
+    for is deliberately the one a responder mid-compression can make without
+    stopping or moving their hands - the face is in front of them, and speech
+    or purposeful movement under compressions is the finding that settles which
+    patient this is.
     """
     if breathing is not Breathing.NONE:
         return ""
@@ -2882,13 +2920,12 @@ def _contradiction_clause(path: _Consulted, breathing: Breathing) -> str:
     if responsiveness is None or responsiveness.is_unconscious:
         return ""
     return (
-        " NOTE THE CONTRADICTION AND SAY IT OUT LOUD: this patient was "
-        f"described as {responsiveness.value.upper()} and as not breathing at "
-        "all, and those two things cannot both be true. Do not stop "
-        "compressions to settle it. Tell them what they told you and ask them "
-        "to look again at the chest and the face - a patient who is genuinely "
-        "talking to them is not in arrest and the instruction changes, and a "
-        "patient who is not needs the compressions that are already under way."
+        " KEEP COMPRESSING WHILE YOU CHECK ONE THING, and do not stop to do "
+        "it: watch the patient's face, and TELL ME IF HE TRIES TO SPEAK, "
+        "OPENS HIS EYES OR MOVES ON PURPOSE. Keep watching for it while you "
+        "work. Someone who does any of that under your hands is not in arrest "
+        "and the instruction changes; someone who does none of it needs "
+        "exactly the compressions that are already going."
     )
 
 

@@ -1522,6 +1522,52 @@ def test_no_reachable_branch_compresses_the_chest_of_an_awake_patient() -> None:
 # ------------- RE-REVIEW DEFECT 1: apnoea is never a conscious-distress leaf
 
 
+def _contradiction_clause_text(branch: AssessmentBranch) -> str:
+    """The contradiction clause's own words, isolated FROM A REAL BRANCH.
+
+    Isolation is needed because the structural assertion in
+    `test_the_apnoea_re_test_is_invisible_and_does_not_relitigate` bans
+    referring to the caller's report, and the SURROUNDING arrest rationale
+    legitimately uses some of those words ("not breathing normally is the whole
+    indication"). Applying the ban to the whole rationale would therefore fail
+    on text this change never touched.
+
+    ISOLATED BY DIFFERENCING TWO `decide` RESULTS, NOT BY CALLING
+    `_contradiction_clause`. The blocker-3 round lost a real defect to a test
+    that called `_hazard_suffix` directly and so never noticed that the only
+    step a fire scene reaches never used it - 98 tests passed over dead
+    clinical content. A clause nobody speaks is not fixed, so this reads the
+    words a bystander would actually hear: the unconscious twin of the same
+    patient reaches the same leaf with no contradiction to re-test, so
+    whatever the awake branch says beyond it is the clause and nothing else.
+    """
+    baseline = decide(
+        AssessmentInputs(
+            scene_safe=SAFE,
+            responsiveness=established(Responsiveness.UNRESPONSIVE),
+            breathing=established(Breathing.NONE),
+            airway_obstruction=NO_OBSTRUCTION,
+            severe_bleeding=established(SevereBleeding.NONE),
+        )
+    )
+    assert baseline.step is branch.step, (
+        "the differencing baseline must reach the SAME leaf, or this "
+        f"subtracts the wrong rationale: {baseline.step} vs {branch.step}"
+    )
+    common = baseline.rationale
+    assert branch.rationale.startswith(common), (
+        "the clause is documented as APPENDED to the shared arrest rationale; "
+        "if that stopped being true this helper is silently measuring nothing"
+    )
+    clause = branch.rationale[len(common):].strip()
+    assert clause, (
+        "the awake branch says nothing the unconscious one does not, so the "
+        "contradiction is being resolved SILENTLY - the re-review's lead "
+        "defect, back"
+    )
+    return clause.lower()
+
+
 def test_absent_breathing_reaches_the_arrest_path_whatever_responsiveness_says(
 ) -> None:
     # falsifier: THE RE-REVIEW'S LEAD FINDING, AND TWO NAMED TESTS PINNED IT AS
@@ -1562,21 +1608,257 @@ def test_absent_breathing_reaches_the_arrest_path_whatever_responsiveness_says(
         # asked for the contradiction to be surfaced, and a branch that simply
         # overrode the awake report would pass the assertions above while
         # hiding the thing a dispatcher most needs to resolve.
+        #
+        # WHAT IS ASSERTED IS THE OBSERVATION REQUEST, NOT THE WORD
+        # "CONTRADICTION". Blocker 4 of the third clinical review: this block
+        # used to demand "contradiction", the awake value quoted back, "look
+        # again" and "do not stop compressions" - which pinned the RELITIGATING
+        # wording as correct, and would have made a future author fixing the
+        # register break a named test. The clinical requirement is that the
+        # branch ask for an observation whose answer changes the route; it is
+        # not that the branch announce the caller was wrong. See
+        # `_contradiction_clause` and
+        # `test_the_apnoea_re_test_is_invisible_and_does_not_relitigate`.
         lowered = branch.rationale.lower()
-        assert "contradiction" in lowered, (
-            "the branch must NAME the contradiction it resolved, so the "
-            "caller is asked to look again rather than silently overridden"
+        assert "tell me if he tries to speak" in lowered, (
+            "the branch must ask for the observation that settles which "
+            "patient this is, so the caller corrects themselves rather than "
+            "being silently overridden"
         )
-        assert awake.value in lowered, (
-            f"and must quote what it was told ({awake.value}) back to them"
+        assert "watch the patient's face" in lowered, (
+            "and must name where to look, since a responder mid-compression "
+            "can only make an observation that needs no hands"
         )
-        assert "look again" in lowered, (
-            "and must ask for the re-check, which is the reviewer's point"
+        assert "the instruction changes" in lowered, (
+            "and must say that the answer changes the route, which is why the "
+            "re-test is worth words at all"
         )
-        assert "do not stop compressions" in lowered, (
-            "while being explicit that the re-check does not interrupt "
-            "compressions - re-testing and resuscitating are not alternatives"
+
+
+def test_the_apnoea_re_test_is_invisible_and_does_not_relitigate() -> None:
+    # falsifier: BLOCKER 4 OF THE THIRD CLINICAL REVIEW. The re-test is spoken
+    # as meta-commentary on the caller's own report - "NOTE THE CONTRADICTION
+    # AND SAY IT OUT LOUD", "those two things cannot both be true", "tell them
+    # what they told you" - so a bystander with both hands on a chest is told
+    # they contradicted themselves and has to defend what they said. The
+    # concrete harm is a STOP: a responder arguing about their report is a
+    # responder not compressing, and no-flow time is the thing that decides
+    # whether this patient survives. "Do not stop compressions" does not
+    # cancel it, because it is a mitigation bolted onto a sentence that invites
+    # the stop.
+    #
+    # ASSERTED AT THE BRANCH, THROUGH `decide`, NOT BY CALLING THE CLAUSE
+    # HELPER. Blocker 3's round cost a real defect exactly that way: a test
+    # called `_hazard_suffix` directly and hid the fact that the only step a
+    # fire scene reaches never used it, so 98 tests passed over dead clinical
+    # content. A clause nothing speaks is a clause that is not fixed.
+    #
+    # AND THE ASSERTIONS ARE IMPERATIVES, NOT WORDS. The same round's other
+    # lesson: a bare substring survived deleting the rule because the word
+    # appeared twice elsewhere in the rationale. Each banned string below is a
+    # phrase that can ONLY be relitigation, and each required string below is
+    # the observation request itself.
+    for awake in (
+        Responsiveness.ALERT,
+        Responsiveness.CONFUSED,
+        Responsiveness.VOCAL,
+    ):
+        branch = decide(
+            AssessmentInputs(
+                scene_safe=SAFE,
+                responsiveness=established(awake),
+                breathing=established(Breathing.NONE),
+                airway_obstruction=NO_OBSTRUCTION,
+                severe_bleeding=established(SevereBleeding.NONE),
+            )
         )
+        lowered = branch.rationale.lower()
+
+        # 1. THE RELITIGATION IS GONE, AND THIS IS CHECKED STRUCTURALLY
+        # BEFORE IT IS CHECKED BY PHRASE. An INDEPENDENT REVIEW of this very
+        # change found that the phrase list below, on its own, checks WORDS AND
+        # NOT THE RULE - which is the repo's signature failure mode and the
+        # named warning from the blocker-3 round. Its mutant was executed and
+        # SURVIVED: prepending "POINT OUT THAT BOTH OF THEIR REPORTS CANNOT BE
+        # RIGHT, and make them account for the one they got wrong." while
+        # leaving every required substring intact passed all 100 tests in this
+        # file. Rephrased relitigation carries the identical harm - a responder
+        # arguing about their report instead of compressing - so a denylist of
+        # five historical strings is not the assertion this row needs.
+        #
+        # The structural property is that the clause SPEAKS ONLY ABOUT THE
+        # PATIENT, NEVER ABOUT THE CALLER'S REPORT. Relitigation is not a
+        # vocabulary, it is a referent: every form of it - "note the
+        # contradiction", "point out that both reports cannot be right", "make
+        # them account for it" - has to refer to what the caller SAID or TOLD
+        # you, or to their REPORT, in order to be relitigation at all. An
+        # observation request refers to the patient and to what is visible now.
+        # So the reference itself is banned, which no rephrasing can avoid
+        # while still doing the harmful thing.
+        clause = _contradiction_clause_text(branch)
+        for referent in (
+            "told",
+            "said",
+            "say",
+            "report",
+            "describ",
+            "contradic",
+            "claim",
+            "wrong",
+            "not match",
+            "account for",
+        ):
+            assert referent not in clause, (
+                f"{awake} + absent breathing refers to the caller's own "
+                f"report ({referent!r}), which is relitigation whatever words "
+                f"carry it - the clause must speak only about the patient and "
+                f"what is visible now. Clause: {clause}"
+            )
+
+        # AND THEN THE HISTORICAL PHRASES, kept as well rather than instead.
+        # The structural rule above is the real assertion; these five are the
+        # reviewer's verbatim quotations, and a regression that restored the
+        # exact old sentence should fail with a message naming it rather than
+        # with a generic referent complaint.
+        for banned, why in (
+            (
+                "note the contradiction",
+                "the operator is told to announce the contradiction, which is "
+                "the sentence that invites the stop",
+            ),
+            (
+                "cannot both be true",
+                "the caller is told their two reports are mutually "
+                "impossible, which is relitigation stated as logic",
+            ),
+            (
+                "tell them what they told you",
+                "the operator is told to quote the caller's report back at "
+                "them, so the caller has to defend it mid-compression",
+            ),
+            (
+                "say it out loud",
+                "the announcement is commanded explicitly",
+            ),
+            (
+                "do not stop compressions",
+                "a mitigation for a stop the sentence should not have "
+                "invited; needing it is the evidence the register is wrong",
+            ),
+        ):
+            assert banned not in lowered, (
+                f"{awake} + absent breathing relitigates the caller's "
+                f"report: {why}. Found {banned!r} in: {branch.rationale}"
+            )
+
+        # 2. AND THE RE-TEST SURVIVED THE DELETION OF THE RELITIGATION, which
+        # is the other half and the one a careless fix loses. The contradiction
+        # genuinely needs surfacing - a wrong responsiveness report is the
+        # likeliest error in the first sixty seconds and the answer CHANGES THE
+        # BRANCH - so a clause that merely went quiet would pass the block
+        # above while silently resolving the contradiction in favour of the
+        # reassuring half, which is the re-review's lead defect returning.
+        assert "tell me if he tries to speak" in lowered, (
+            f"{awake} + absent breathing no longer asks for the observation "
+            f"that settles the contradiction; deleting the relitigation must "
+            f"not delete the re-test. Got: {branch.rationale}"
+        )
+        # The observation is one a responder mid-compression can actually make:
+        # it needs their eyes, not their hands, and it is folded into the
+        # action already under way rather than standing beside it.
+        assert "keep compressing" in lowered, (
+            "the re-test must be folded INTO the compressions; an observation "
+            "request that stands beside them is a request to pause"
+        )
+        assert "watch the patient's face" in lowered, (
+            "and must name a hands-free place to look, since both of this "
+            "responder's hands are committed"
+        )
+        # And the answer is stated as route-changing in both directions, which
+        # is what makes it a re-test rather than a reassurance.
+        assert "is not in arrest and the instruction changes" in lowered, (
+            "a positive answer must be stated as changing the instruction"
+        )
+        assert "needs exactly the compressions that are already going" in (
+            lowered
+        ), "and a negative answer must confirm the compressions, not pause them"
+
+        # 3. IT IS IN `ASK_AIRWAY_OBSTRUCTION`'S REGISTER, which is the shape
+        # the reviewer named and which this module already contains. That
+        # question re-tests the same wrong "alert" report and states in its own
+        # words that the caller corrects themselves WITHOUT BEING TOLD they
+        # were wrong. Both surfaces must share that property, or the module
+        # holds two answers to one clinical question and the next author
+        # copies whichever they read first.
+        asked = decide(
+            AssessmentInputs(
+                scene_safe=SAFE,
+                responsiveness=established(awake),
+                breathing=established(Breathing.NONE),
+                severe_bleeding=established(SevereBleeding.NONE),
+            )
+        )
+        assert asked.step is AssessmentStep.ASK_AIRWAY_OBSTRUCTION, (
+            "the register being copied must still be reachable, or this row "
+            "compares against a step nothing speaks"
+        )
+        assert "without ever being told they were wrong" in (
+            asked.rationale.lower()
+        ), (
+            "the model this clause copies must still state the invisible-"
+            "re-test property it is being copied for"
+        )
+
+
+def test_the_contradiction_wording_gap_is_recorded_as_closed_and_not_as_open(
+) -> None:
+    # falsifier: the same failure the hazard-class mirror test exists for, on
+    # Blocker 4. The recorded-gaps block keeps describing the relitigating
+    # wording as an OPEN gap after it has been rewritten, so the next author
+    # reads a warning about words that are no longer in the file, goes looking
+    # for them, and either "fixes" it a second time or concludes the gaps block
+    # is stale and stops trusting the rest of it - which is the block that
+    # currently carries the pulmonary-oedema harm. A gap list that lies in the
+    # safe direction still destroys its own credibility.
+    source = Path(inspect.getfile(decide)).read_text(encoding="utf-8")
+    lowered = " ".join(source.lower().split())
+    for owed, why in (
+        (
+            "`_contradiction_clause`'s wording is fixed",
+            "the gap must be marked closed where it was recorded, not "
+            "silently deleted - a deleted gap looks like one nobody found",
+        ),
+        (
+            "its routing was never the defect",
+            "and must say which half moved, since the routing is the part a "
+            "reader is most likely to 'fix' by mistake",
+        ),
+        (
+            "the re-test itself was not deleted",
+            "and must record that the contradiction is still surfaced, or the "
+            "next author reads the fix as permission to drop the re-test",
+        ),
+    ):
+        assert owed in lowered, f"the module must record: {why}"
+
+    # And the claim is not merely prose: the words it says it now speaks are
+    # the words a reachable branch actually speaks. A recorded fix whose
+    # mechanism is absent is this repo's signature failure mode - a mechanism
+    # whose only implementation is its own description - which the third review
+    # counted five instances of.
+    spoken = decide(
+        AssessmentInputs(
+            scene_safe=SAFE,
+            responsiveness=established(Responsiveness.ALERT),
+            breathing=established(Breathing.NONE),
+            airway_obstruction=NO_OBSTRUCTION,
+            severe_bleeding=established(SevereBleeding.NONE),
+        )
+    ).rationale.lower()
+    assert "tell me if he tries to speak" in spoken, (
+        "the module records the wording gap as closed by an observation "
+        "request that no reachable branch speaks"
+    )
 
 
 def test_the_apnoea_contradiction_is_not_re_asked_as_a_question() -> None:
@@ -3933,12 +4215,9 @@ def test_the_recorded_gaps_stay_recorded() -> None:
             "the module's own docstring previously described it as global and "
             "a reader would otherwise apply it to an energised patient",
         ),
-        (
-            "relitigate the caller's report",
-            "`_contradiction_clause`'s WORDING is a defect though its routing "
-            "is right: a real dispatcher re-tests invisibly, as "
-            "ASK_AIRWAY_OBSTRUCTION already does with 'can he answer you?'",
-        ),
+        # NOT `_contradiction_clause`'s wording, which is FIXED rather than
+        # recorded - see
+        # `test_the_contradiction_wording_gap_is_recorded_as_closed_and_not_as_open`.
         (
             "are the failure itself",
             "the deterioration rule is WRONG for pulmonary oedema: the "
