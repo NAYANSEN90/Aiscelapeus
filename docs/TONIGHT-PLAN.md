@@ -86,14 +86,16 @@ The order below is driven by the failure that would occur if each assumption wer
   browser playback, and a spoken arrest/gate scenario remain a manual rehearsal item.
 - Evidence: `docs/evidence/2026-09-19-live-smoke.md`.
 
-### T4 — reconciliation and final push — IN PROGRESS
+### T4 — reconciliation and final push — DONE
 
-- Bring `README.md`, `BUILD-PLAN.md`, and the requirements/run instructions into agreement
-  with the actual Gemini + Deepgram runtime.
-- Prove the download-to-run path from a clean Git archive, build both production images,
-  and keep all credential material outside Git and image layers.
-- Run the full gate again, independently review each implementation diff, commit, run the
-  secret-history audit, and push.
+- `README.md`, `BUILD-PLAN.md`, requirements, and run instructions agree with the actual
+  Gemini + Deepgram runtime.
+- The wheel and standalone web build were produced; Compose configuration validates. The
+  local Docker daemon was unavailable, so image execution remains an explicit limitation.
+- The full gate passed, the final implementation received an independent **SAFE TO COMMIT**
+  verdict, commits `45bce9c` and `23fdd9d` were pushed to `origin/main`, and the post-commit
+  history audit found no configured credential value or tracked dotenv beyond
+  `.env.example`.
 
 ### T5 — judge delivery — LOCAL PATH DONE, HOSTED DEPLOY OPEN
 

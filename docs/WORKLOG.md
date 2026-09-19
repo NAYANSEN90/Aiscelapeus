@@ -51,6 +51,10 @@ coverage, make the system downloadable, and give judges a reliable hosted experi
   snapshot, and audio-track transport; successful Gemini reply; successful Deepgram TTS
   and playout; successful Gemini SOAP generation. See
   `docs/evidence/2026-09-19-live-smoke.md`.
+- Final independent review returned **SAFE TO COMMIT**. Commits `45bce9c` and `23fdd9d`
+  were pushed to `origin/main`; the post-commit Git-history audit found no configured
+  LiveKit, Moss, Deepgram, or Gemini credential value and no tracked dotenv other than
+  the blank `.env.example`.
 
 ### Counterfactuals covered
 
