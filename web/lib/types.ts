@@ -46,11 +46,20 @@ export interface TriageState {
 export interface Finding {
   id: string;
   text: string;
-  kind: string;
+  kind: FactKind;
   seq: number;
   elapsed_s: number;
   recorded_at: string;
 }
+
+export const FACT_KINDS = [
+  "vital",
+  "intervention",
+  "observation",
+  "symptom",
+  "escalation",
+] as const;
+export type FactKind = (typeof FACT_KINDS)[number];
 
 export interface RetrievalEvent {
   kind: "protocol" | "state";
@@ -66,14 +75,21 @@ export interface EscalationEvent {
   session_id: string;
   level: number;
   label: string;
+  status:
+    | "requested"
+    | "clinician_joined"
+    | "clinician_lost"
+    | "failed_no_response";
   reason: string;
   requested_at: string | null;
 }
 
 export interface TranscriptEvent {
   speaker: string;
+  speaker_index: number | null;
   text: string;
   final: boolean;
+  at: string;
 }
 
 export interface SoapEvent {
@@ -84,6 +100,7 @@ export interface SoapEvent {
 export interface SnapshotEvent {
   state: TriageState;
   findings: Finding[];
+  timeline_status: "complete" | "unavailable";
 }
 
 export type TriageEnvelope =

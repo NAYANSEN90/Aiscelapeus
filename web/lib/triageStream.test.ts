@@ -61,16 +61,26 @@ describe("parseTriageEnvelope", () => {
         session_id: "inc-test",
         level: 5,
         label: "Critical",
+        status: "requested",
         reason: "not breathing",
         requested_at: "2026-09-19T10:00:00Z",
       },
     },
     {
       topic: "triage.transcript",
-      data: { speaker: "responder", text: "he is not breathing", final: true },
+      data: {
+        speaker: "responder",
+        speaker_index: 0,
+        text: "he is not breathing",
+        final: true,
+        at: "2026-09-19T10:00:00Z",
+      },
     },
     { topic: "triage.soap", data: { session_id: "inc-test", note: "S: collapse" } },
-    { topic: "triage.snapshot", data: { state: state(), findings: [finding("f-1", 1)] } },
+    {
+      topic: "triage.snapshot",
+      data: { state: state(), findings: [finding("f-1", 1)], timeline_status: "complete" },
+    },
   ];
 
   it.each(valid)("accepts and reduces a valid $topic payload", (wireEnvelope) => {
@@ -86,7 +96,12 @@ describe("parseTriageEnvelope", () => {
     { topic: "triage.state", data: state({ level: 5.5 as 5 }) },
     { topic: "triage.state", data: state({ escalation: "connected" as TriageState["escalation"] }) },
     { topic: "triage.finding", data: { ...finding("f-1", 1), seq: "1" } },
-    { topic: "triage.snapshot", data: { state: state(), findings: [{}] } },
+    { topic: "triage.finding", data: { ...finding("f-1", 1), kind: "breathing" } },
+    {
+      topic: "triage.snapshot",
+      data: { state: state(), findings: [{}], timeline_status: "complete" },
+    },
+    { topic: "triage.snapshot", data: { state: state(), findings: [], timeline_status: "partial" } },
     {
       topic: "triage.retrieval",
       data: {
@@ -110,7 +125,10 @@ describe("parseTriageEnvelope", () => {
       },
     },
     { topic: "triage.escalation", data: { reason: "missing the rest" } },
-    { topic: "triage.transcript", data: { speaker: "responder", text: "help" } },
+    {
+      topic: "triage.transcript",
+      data: { speaker: "responder", speaker_index: 0, text: "help", final: true },
+    },
     { topic: "triage.soap", data: { session_id: "inc-test", note: 7 } },
   ])("rejects malformed or unknown channel input %#", (value) => {
     expect(parseTriageEnvelope(value)).toBeNull();
@@ -126,27 +144,105 @@ describe("reduceTriageStream", () => {
     expect(next.findings.map((item) => item.id)).toEqual(["f-1"]);
   });
 
-  it("replaces stale state and findings with a late-join snapshot", () => {
+  it("upserts a live finding already delivered in the snapshot", () => {
+    const snapshot = reduceTriageStream(EMPTY_TRIAGE_STREAM, {
+      topic: "triage.snapshot",
+      data: {
+        state: state(),
+        findings: [finding("same-fact", 1)],
+        timeline_status: "complete",
+      },
+    });
+    const corrected = { ...finding("same-fact", 1), text: "corrected live payload" };
+
+    const next = reduceTriageStream(snapshot, {
+      topic: "triage.finding",
+      data: corrected,
+    });
+
+    expect(next.findings).toEqual([corrected]);
+  });
+
+  it("takes newer snapshot state while retaining live findings from the same incident", () => {
     const previous = {
       ...EMPTY_TRIAGE_STREAM,
-      state: state({ level: 2, escalated: false, escalation: "not_needed" }),
-      findings: [finding("stale", 1)],
+      state: state({
+        level: 2,
+        escalated: false,
+        escalation: "not_needed",
+        updated_at: "2026-09-19T09:00:00Z",
+      }),
+      findings: [finding("live", 1)],
     };
     const currentState = state({ clinician_present: true, escalation: "clinician_joined" });
     const next = reduceTriageStream(previous, {
       topic: "triage.snapshot",
-      data: { state: currentState, findings: [finding("current", 2)] },
+      data: {
+        state: currentState,
+        findings: [finding("snapshot", 2)],
+        timeline_status: "complete",
+      },
     });
 
     expect(next.state).toEqual(currentState);
-    expect(next.findings.map((item) => item.id)).toEqual(["current"]);
+    expect(next.findings.map((item) => item.id)).toEqual(["live", "snapshot"]);
+  });
+
+  it("does not let a delayed snapshot erase newer state or findings", () => {
+    const liveState = state({
+      level: 5,
+      label: "Critical",
+      escalation: "clinician_joined",
+      clinician_present: true,
+      updated_at: "2026-09-19T10:00:03Z",
+    });
+    const previous = {
+      ...EMPTY_TRIAGE_STREAM,
+      state: liveState,
+      findings: [finding("new-live-fact", 3)],
+    };
+    const delayedSnapshotState = state({ updated_at: "2026-09-19T10:00:01Z" });
+
+    const next = reduceTriageStream(previous, {
+      topic: "triage.snapshot",
+      data: {
+        state: delayedSnapshotState,
+        findings: [finding("older-snapshot-fact", 2)],
+        timeline_status: "complete",
+      },
+    });
+
+    expect(next.state).toEqual(liveState);
+    expect(next.findings.map((item) => item.id)).toEqual([
+      "older-snapshot-fact",
+      "new-live-fact",
+    ]);
+  });
+
+  it("preserves Python microsecond ordering inside one JavaScript millisecond", () => {
+    const previousState = state({ updated_at: "2026-09-19T10:00:00.000100+00:00" });
+    const newerSnapshot = state({
+      level: 5,
+      label: "Critical",
+      updated_at: "2026-09-19T10:00:00.000900+00:00",
+    });
+
+    const next = reduceTriageStream(
+      { ...EMPTY_TRIAGE_STREAM, state: previousState },
+      {
+        topic: "triage.snapshot",
+        data: { state: newerSnapshot, findings: [], timeline_status: "complete" },
+      },
+    );
+
+    expect(next.state).toEqual(newerSnapshot);
   });
 
   it("never shares the snapshot array with caller-owned data", () => {
     const findings = [finding("f-1", 1)];
     const next = reduceTriageStream(EMPTY_TRIAGE_STREAM, {
       topic: "triage.snapshot",
-      data: { state: state(), findings },
+      data: { state: state(), findings, timeline_status: "complete" },
     });
     findings.push(finding("mutated", 2));
     expect(next.findings.map((item) => item.id)).toEqual(["f-1"]);
@@ -157,7 +253,13 @@ describe("reduceTriageStream", () => {
     for (let index = 0; index < MAX_TRANSCRIPT + 5; index += 1) {
       stream = reduceTriageStream(stream, {
         topic: "triage.transcript",
-        data: { speaker: "responder", text: String(index), final: true },
+        data: {
+          speaker: "responder",
+          speaker_index: 0,
+          text: String(index),
+          final: true,
+          at: "now",
+        },
       });
     }
     expect(stream.transcript).toHaveLength(MAX_TRANSCRIPT);
@@ -204,6 +306,7 @@ describe("reduceTriageStream", () => {
         session_id: "inc-test",
         level: 4,
         label: "Severe",
+        status: "requested",
         reason: "threshold",
         requested_at: "now",
       },

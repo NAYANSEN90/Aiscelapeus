@@ -7,6 +7,10 @@ agent/.venv/
 __pycache__/
 *.py[cod]
 .pytest_cache/
+agent/.pytest-*/
+agent/.dist-smoke/
+agent/build/
+agent/dist/
 .mypy_cache/
 .ruff_cache/
 agent/_probe.py

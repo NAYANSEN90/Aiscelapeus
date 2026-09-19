@@ -109,13 +109,40 @@ docs/                    PRD, architecture notes, mentor feedback
 
 ---
 
-## Running it
+## Download and run
+
+The supported whole-stack delivery is Docker Compose. It uses one ignored root
+configuration file and builds the same production images published by tagged
+releases:
+
+```bash
+cp .env.example .env.local
+# Fill in .env.local, then:
+docker compose --env-file .env.local config --quiet
+docker compose --env-file .env.local up --build -d
+```
+
+Open <http://localhost:3000> for the responder and
+<http://localhost:3000/doctor> for the clinician. The complete configuration,
+verification, recovery, native-development, and release instructions are in
+[`docs/RUNBOOK.md`](docs/RUNBOOK.md).
+
+For a judge or reviewer without credentials, <http://localhost:3000/demo> plays
+deterministic emergency and non-emergency fixtures through the same runtime
+parser and reducer as a live room. It is permanently labeled as a recorded
+simulation and does not make live latency or patient-care claims.
+
+Tagged releases (`v*`) publish agent and web container images plus a Python wheel
+and standalone web archive. Credentials remain runtime environment variables;
+they are excluded from Git, Docker build contexts, and release artifacts.
+
+## Native development
 
 ### 1. Configure
 
 ```bash
-cp .env.example .env.local          # agent
-cp .env.example web/.env.local      # web app
+cp .env.example .env.local          # agent reads from repository root
+cp .env.example web/.env.local      # Next.js development server
 ```
 
 Fill in LiveKit, Moss, Deepgram and Gemini credentials.
@@ -124,6 +151,9 @@ Fill in LiveKit, Moss, Deepgram and Gemini credentials.
 
 ```bash
 cd agent
+python -m venv .venv
+.venv/Scripts/python -m pip install -e ".[dev]"  # Windows
+# .venv/bin/python -m pip install -e ".[dev]"    # macOS / Linux
 .venv/Scripts/python scripts/seed_moss.py          # Windows
 # python scripts/seed_moss.py                      # macOS / Linux
 ```
@@ -194,8 +224,9 @@ Tracked openly rather than hidden — these are the next commits, not oversights
 
 - **Encryption at rest** for audio and transcripts (AES-256) is specified but not
   implemented; TLS 1.3 in transit is inherited from LiveKit and Vercel.
-- **Rate limiting and OAuth2** in front of `/api/token`. The route validates and
-  scopes tightly, but it does not yet authenticate the caller.
+- **Rate limiting and user identity** in front of `/api/token`. Production fails
+  closed without separate responder/clinician demo access codes, but shared
+  codes are not OAuth2, individual identity, or durable clinician RBAC.
 - **Local-first fallback** for a total cellular blackout: cache the protocol index
   on-device and queue transcripts for deferred sync. Moss's WebAssembly SDK
   (`@moss-dev/moss-web`) is the intended path.

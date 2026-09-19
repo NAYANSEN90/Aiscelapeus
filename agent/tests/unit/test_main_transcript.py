@@ -761,6 +761,19 @@ def test_the_llm_leg_carries_the_configured_temperature_not_a_default() -> None:
         assert instance._opts.temperature == 0.07
 
 
+def test_the_llm_fallback_deadline_meets_geminis_minimum() -> None:
+    # falsifier: FallbackAdapter keeps its 5-second default. The Google GenAI
+    # endpoint rejects that before inference with HTTP 400 (its minimum manual
+    # deadline is 10 seconds), so both the primary and fallback fail even while
+    # the provider is healthy. Leave margin above the boundary rather than
+    # encoding an equality that a provider-side rounding change can break.
+    from aiscelapeus.main import build_llm
+
+    adapter = build_llm(ModelConfig(), api_key="test-key")
+
+    assert adapter._attempt_timeout >= 12.0
+
+
 def test_the_stt_leg_enables_diarization_which_speaker_mapping_depends_on() -> None:
     # falsifier: diarization is switched off. Every speaker-attribution test above
     # drives the handler with a fake event whose `speaker_id` the test sets, so

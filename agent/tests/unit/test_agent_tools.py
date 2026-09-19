@@ -42,6 +42,7 @@ pytest.importorskip(
 )
 
 from aiscelapeus.agent import AiscelapeusAgent  # noqa: E402
+from aiscelapeus.clinician import ClinicianRoster  # noqa: E402
 from aiscelapeus.config import Settings  # noqa: E402
 from aiscelapeus.ports import LatencyClass  # noqa: E402
 from aiscelapeus.retrieval import (  # noqa: E402
@@ -50,7 +51,12 @@ from aiscelapeus.retrieval import (  # noqa: E402
     Retrieved,
 )
 from aiscelapeus.testing.fakes import FakeMoss, FakePublisher  # noqa: E402
-from aiscelapeus.triage import Criticality, FactKind, TriageState  # noqa: E402
+from aiscelapeus.triage import (  # noqa: E402
+    Criticality,
+    EscalationStatus,
+    FactKind,
+    TriageState,
+)
 
 from ..conftest import FAKE_ENV  # noqa: E402
 
@@ -303,6 +309,31 @@ async def test_a_routine_finding_does_not_escalate(
     )
     assert agent.state.level is not Criticality.CRITICAL
     assert "triage.escalation" not in publisher.topics()
+
+
+async def test_a_clinician_already_in_the_room_joins_a_new_request_immediately(
+    settings: Settings, moss: FakeMoss, publisher: FakePublisher
+) -> None:
+    # falsifier: a clinician opens the dashboard before deterioration, then the
+    # agent requests help and displays "waiting" forever even though that
+    # participant is already active in the room.
+    roster = ClinicianRoster()
+    roster.activate("clinician-early")
+    agent = AiscelapeusAgent(
+        settings=settings,
+        context=cast(Any, moss),
+        state=TriageState(session_id=moss.session_id),
+        publish=publisher,
+        clinician_roster=roster,
+    )
+
+    requested = await agent._do_escalate("patient deteriorated", category="test")
+
+    assert requested is True
+    assert agent.state.escalation is EscalationStatus.CLINICIAN_JOINED
+    event = publisher.last("triage.escalation")
+    assert event is not None
+    assert event["status"] == EscalationStatus.CLINICIAN_JOINED.value
 
 
 # ------------------------------------------------------------ the tool's answer

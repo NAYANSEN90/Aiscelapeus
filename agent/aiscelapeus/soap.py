@@ -9,7 +9,8 @@ from __future__ import annotations
 
 import logging
 
-from openai import AsyncOpenAI
+from google import genai
+from google.genai import types
 
 from .config import Settings
 from .ports import FactRecord
@@ -52,6 +53,7 @@ def _format_assessments(state: TriageState) -> str:
 async def generate_soap_note(
     *,
     settings: Settings,
+    api_key: str,
     session_id: str,
     timeline: list[FactRecord],
     state: TriageState,
@@ -75,33 +77,45 @@ async def generate_soap_note(
         ]
     )
 
-    client = AsyncOpenAI()
+    # Use the same explicit Gemini credential as the live voice path. Relying on
+    # SDK ambient discovery here made a correct Gemini-only deployment fail at
+    # shutdown because the old implementation silently required OPENAI_API_KEY.
+    client = genai.Client(api_key=api_key)
 
-    with span(
-        "soap.generate",
-        **{
-            "session.id": session_id,
-            "triage.level": state.level,
-            "triage.escalated": state.escalated,
-            "prompt.version": PROMPT_VERSION,
-            "soap.timeline_facts": len(timeline),
-        },
-    ) as current:
-        response = await client.chat.completions.create(
-            model=settings.models.llm_model,
-            temperature=0.0,
-            messages=[
-                {"role": "system", "content": instructions},
-                {"role": "user", "content": user_content},
-            ],
-        )
-        usage = response.usage
-        record_llm_usage(
-            current,
-            model=settings.models.llm_model,
-            system_prompt=instructions,
-            prompt_tokens=getattr(usage, "prompt_tokens", None),
-            completion_tokens=getattr(usage, "completion_tokens", None),
-        )
+    try:
+        with span(
+            "soap.generate",
+            **{
+                "session.id": session_id,
+                "triage.level": state.level,
+                "triage.escalated": state.escalated,
+                "prompt.version": PROMPT_VERSION,
+                "soap.timeline_facts": len(timeline),
+            },
+        ) as current:
+            response = await client.aio.models.generate_content(
+                model=settings.models.llm_model,
+                contents=user_content,
+                config=types.GenerateContentConfig(
+                    system_instruction=instructions,
+                    temperature=0.0,
+                    automatic_function_calling=types.AutomaticFunctionCallingConfig(
+                        disable=True
+                    ),
+                    # Milliseconds. SOAP is off the voice latency path but must
+                    # remain bounded during shutdown.
+                    http_options=types.HttpOptions(timeout=30_000),
+                ),
+            )
+            usage = response.usage_metadata
+            record_llm_usage(
+                current,
+                model=settings.models.llm_model,
+                system_prompt=instructions,
+                prompt_tokens=getattr(usage, "prompt_token_count", None),
+                completion_tokens=getattr(usage, "candidates_token_count", None),
+            )
 
-    return (response.choices[0].message.content or "").strip()
+        return (response.text or "").strip()
+    finally:
+        await client.aio.aclose()

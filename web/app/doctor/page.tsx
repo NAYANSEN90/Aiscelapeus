@@ -17,8 +17,24 @@ export default function DoctorPage() {
   const [joined, setJoined] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [talking, setTalking] = useState(false);
+  const [accessCode, setAccessCode] = useState("");
+  const [snapshotTimeoutSession, setSnapshotTimeoutSession] = useState<string | null>(null);
 
-  const stream = useTriageStream(room);
+  const stream = useTriageStream(room, sessionId.trim());
+  const snapshotTimedOut =
+    joined &&
+    stream.snapshotTimelineStatus === null &&
+    snapshotTimeoutSession === sessionId.trim();
+
+  useEffect(() => {
+    if (!joined || stream.snapshotTimelineStatus !== null) return;
+    const currentSession = sessionId.trim();
+    const timer = window.setTimeout(
+      () => setSnapshotTimeoutSession(currentSession),
+      8_000,
+    );
+    return () => window.clearTimeout(timer);
+  }, [joined, sessionId, stream.snapshotTimelineStatus]);
 
   useEffect(() => {
     const onTrack = (track: Track) => {
@@ -45,6 +61,7 @@ export default function DoctorPage() {
           room: sessionId.trim(),
           identity: `clinician-${Math.random().toString(36).slice(2, 8)}`,
           role: "clinician",
+          accessCode,
         }),
       });
       const payload = await res.json();
@@ -52,11 +69,12 @@ export default function DoctorPage() {
       await room.connect(payload.url, payload.token);
       // Join muted. The clinician opens their mic deliberately.
       await room.localParticipant.setMicrophoneEnabled(false);
+      setSnapshotTimeoutSession(null);
       setJoined(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     }
-  }, [room, sessionId]);
+  }, [accessCode, room, sessionId]);
 
   const toggleTalk = useCallback(async () => {
     const next = !talking;
@@ -84,6 +102,15 @@ export default function DoctorPage() {
               onChange={(e) => setSessionId(e.target.value)}
               placeholder="incident id, e.g. inc-0914-1832-a4f2"
               className="w-80 rounded-lg border border-neutral-700 bg-neutral-900 px-4 py-3 font-mono text-sm outline-none focus:border-sky-600"
+            />
+            <input
+              type="password"
+              autoComplete="off"
+              value={accessCode}
+              onChange={(event) => setAccessCode(event.target.value)}
+              placeholder="Clinician access code"
+              aria-label="Clinician live access code"
+              className="w-64 rounded-lg border border-neutral-700 bg-neutral-900 px-4 py-3 text-sm outline-none focus:border-sky-600"
             />
             <button
               onClick={join}
@@ -128,8 +155,27 @@ export default function DoctorPage() {
                 <h2 className="text-sm font-semibold text-neutral-300">
                   Incident timeline (Moss)
                 </h2>
+                {stream.snapshotTimelineStatus === "unavailable" && (
+                  <p
+                    role="alert"
+                    className="mt-3 rounded-md bg-amber-950/60 px-3 py-2 text-sm text-amber-200 ring-1 ring-amber-800"
+                  >
+                    Historical timeline unavailable. Live updates will still appear; do not assume the empty history means nothing was recorded.
+                  </p>
+                )}
+                {snapshotTimedOut && stream.snapshotTimelineStatus === null && (
+                  <p
+                    role="alert"
+                    className="mt-3 rounded-md bg-amber-950/60 px-3 py-2 text-sm text-amber-200 ring-1 ring-amber-800"
+                  >
+                    Historical timeline sync was not received. Live updates may still appear; do not treat this as an empty incident.
+                  </p>
+                )}
                 <div className="mt-3 max-h-96 space-y-2 overflow-y-auto pr-1">
-                  {stream.findings.length === 0 && (
+                  {stream.findings.length === 0 && stream.snapshotTimelineStatus === null && !snapshotTimedOut && (
+                    <p className="text-sm text-neutral-600">Waiting for historical timeline sync.</p>
+                  )}
+                  {stream.findings.length === 0 && stream.snapshotTimelineStatus === "complete" && (
                     <p className="text-sm text-neutral-600">Nothing recorded yet.</p>
                   )}
                   {[...stream.findings].reverse().map((fact) => (

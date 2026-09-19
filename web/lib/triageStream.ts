@@ -1,3 +1,4 @@
+import { FACT_KINDS } from "./types";
 import type {
   Finding,
   SnapshotEvent,
@@ -15,6 +16,7 @@ export interface TriageStream {
   escalation: Extract<TriageEnvelope, { topic: "triage.escalation" }>["data"] | null;
   transcript: Extract<TriageEnvelope, { topic: "triage.transcript" }>["data"][];
   soap: string | null;
+  snapshotTimelineStatus: SnapshotEvent["timeline_status"] | null;
   latency: { last: number | null; best: number | null; worst: number | null; count: number };
 }
 
@@ -25,6 +27,7 @@ export const EMPTY_TRIAGE_STREAM: TriageStream = {
   escalation: null,
   transcript: [],
   soap: null,
+  snapshotTimelineStatus: null,
   latency: { last: null, best: null, worst: null, count: 0 },
 };
 
@@ -64,6 +67,7 @@ const ESCALATION_STATES = new Set([
   "clinician_lost",
   "failed_no_response",
 ]);
+const FACT_KIND_SET = new Set<string>(FACT_KINDS);
 
 function isState(value: unknown): value is TriageState {
   return (
@@ -96,6 +100,7 @@ function isFinding(value: unknown): value is Finding {
     typeof value.id === "string" &&
     typeof value.text === "string" &&
     typeof value.kind === "string" &&
+    FACT_KIND_SET.has(value.kind) &&
     typeof value.seq === "number" &&
     typeof value.elapsed_s === "number" &&
     typeof value.recorded_at === "string"
@@ -135,6 +140,9 @@ function isEscalation(value: unknown): boolean {
     value.level >= 1 &&
     value.level <= 5 &&
     typeof value.label === "string" &&
+    typeof value.status === "string" &&
+    ESCALATION_STATES.has(value.status) &&
+    value.status !== "not_needed" &&
     typeof value.reason === "string" &&
     nullableString(value.requested_at)
   );
@@ -144,8 +152,10 @@ function isTranscript(value: unknown): boolean {
   return (
     record(value) &&
     typeof value.speaker === "string" &&
+    (value.speaker_index === null || finiteNumber(value.speaker_index)) &&
     typeof value.text === "string" &&
-    typeof value.final === "boolean"
+    typeof value.final === "boolean" &&
+    typeof value.at === "string"
   );
 }
 
@@ -158,8 +168,23 @@ function isSnapshot(value: unknown): value is SnapshotEvent {
     record(value) &&
     isState(value.state) &&
     Array.isArray(value.findings) &&
-    value.findings.every(isFinding)
+    value.findings.every(isFinding) &&
+    (value.timeline_status === "complete" || value.timeline_status === "unavailable")
   );
+}
+
+function highResolutionUtcKey(value: string): string | null {
+  // Python emits UTC ISO-8601 with up to six fractional digits. Date.parse
+  // discards digits 4-6, which can reverse two state changes inside one ms.
+  const match = /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})(?:\.(\d{1,6}))?(?:Z|\+00:00)$/.exec(value);
+  if (!match) return null;
+  return `${match[1]}.${(match[2] ?? "").padEnd(6, "0")}`;
+}
+
+function upsertFinding(findings: Finding[], incoming: Finding): Finding[] {
+  const byId = new Map(findings.map((finding) => [finding.id, finding]));
+  byId.set(incoming.id, incoming);
+  return [...byId.values()].sort((left, right) => left.seq - right.seq);
 }
 
 /** Runtime boundary for untrusted LiveKit data-channel JSON. */
@@ -203,9 +228,36 @@ export function reduceTriageStream(
     case "triage.state":
       return { ...previous, state: envelope.data };
     case "triage.finding":
-      return { ...previous, findings: [...previous.findings, envelope.data] };
-    case "triage.snapshot":
-      return { ...previous, state: envelope.data.state, findings: [...envelope.data.findings] };
+      return { ...previous, findings: upsertFinding(previous.findings, envelope.data) };
+    case "triage.snapshot": {
+      const sameSession = previous.state?.session_id === envelope.data.state.session_id;
+      const previousTime = previous.state
+        ? highResolutionUtcKey(previous.state.updated_at)
+        : null;
+      const snapshotTime = highResolutionUtcKey(envelope.data.state.updated_at);
+      // A delayed catch-up must never roll back state that arrived live while
+      // the agent awaited the timeline read. Unparseable clocks fail closed in
+      // favour of the already-rendered live state.
+      const snapshotIsNewer =
+        !sameSession ||
+        previous.state == null ||
+        (previousTime !== null && snapshotTime !== null && snapshotTime > previousTime);
+
+      const byId = new Map(envelope.data.findings.map((finding) => [finding.id, finding]));
+      if (sameSession) {
+        // Live findings win on ID and survive a snapshot captured at an older
+        // timeline watermark. Sort by seq to restore the durable order.
+        for (const finding of previous.findings) byId.set(finding.id, finding);
+      }
+      const findings = [...byId.values()].sort((left, right) => left.seq - right.seq);
+
+      return {
+        ...previous,
+        state: snapshotIsNewer ? envelope.data.state : previous.state,
+        findings,
+        snapshotTimelineStatus: envelope.data.timeline_status,
+      };
+    }
     case "triage.escalation":
       return { ...previous, escalation: envelope.data };
     case "triage.soap":

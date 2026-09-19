@@ -10,6 +10,68 @@ never rewritten — a correction is a new entry that supersedes an old one.
 
 ---
 
+## 2026-09-19 · Session 7 — clinician lifecycle, judge replay, and release proof
+
+**Goal (NAYANSEN):** finish tonight: commit and push safely, expand counterfactual
+coverage, make the system downloadable, and give judges a reliable hosted experience.
+
+### Built
+
+- A clinician roster keyed by participant identity, SID, and generation; late join sends
+  a targeted state/timeline snapshot, stale disconnects cannot remove a replacement
+  participant, and a real disconnect moves escalation to `CLINICIAN_LOST`.
+- Strict web envelopes, a pure bounded reducer, high-resolution snapshot/live merge, and
+  explicit unavailable-history presentation.
+- Separate responder and clinician access codes, production readiness, and named worker
+  dispatch on either role's room-creating token. A clinician-first worker waits for and
+  pins media input to a stable, incident-scoped responder identity instead of treating the
+  doctor as the caller. Explicitly ending a call rotates to a fresh incident and worker.
+- Shutdown cleanup is registered before Moss or room connection. A clinician-first job
+  cancelled before a responder arrives still attempts the durable archive, then unloads
+  Moss; SOAP generation cannot delay that archive.
+- A permanently labeled `/demo` replay with arrest and minor-cut counterfactuals. Frames
+  pass through the production parser and reducer rather than a parallel mock state.
+- Compose, production Dockerfiles, a Python wheel, standalone Next output, and a tagged
+  release workflow publishing artifacts and GHCR images.
+- One provider lifecycle: Gemini now generates both live turns and SOAP. The fallback
+  deadline is 15 seconds because the live Gemini API rejects the adapter's 5-second
+  default before inference.
+
+### Proved
+
+- Python: **3,932 passed, 16 skipped, 2 expected failures**; the only warning reports the
+  intentionally present ignored dotenv without reading it. Mypy passed 23 source files.
+- Web: **70 passed**; typecheck, lint, and production build passed. `/demo`, `/doctor`,
+  readiness, and token routes appear in the production route manifest.
+- Headless harness: **6 scenarios / 25 turns / 0 failures** in 0.072 seconds.
+- The Python wheel was built, inspected for required modules and absence of env files,
+  force-installed, and its isolated CLI executed. The standalone Next server served
+  readiness and exercised both roles.
+- Real LiveKit smoke: named dispatch; connected responder and clinician; state, targeted
+  snapshot, and audio-track transport; successful Gemini reply; successful Deepgram TTS
+  and playout; successful Gemini SOAP generation. See
+  `docs/evidence/2026-09-19-live-smoke.md`.
+
+### Counterfactuals covered
+
+Malformed identities and envelopes, wrong/shared role codes, duplicate and reordered
+state, snapshot races, equal-millisecond timestamps, failed timeline reads, failed
+targeted publish, duplicate active events, join-before-request, disconnect/reconnect ABA,
+missing production configuration, invalid replay fixtures, provider deadline rejection,
+client cleanup on SOAP failure, cancellation before a responder joins, archive-before-SOAP
+ordering, stable reconnect identity, fresh incidents after an explicit call end, and a
+keyed stream reset that prevents prior-incident clinical data from crossing that boundary.
+
+### Still open, stated rather than hidden
+
+- Human browser microphone/audio and the spoken arrest/gate rehearsal are manual because
+  browser-control startup failed on this host.
+- External clinician paging and identity-backed RBAC are not implemented; access codes
+  are a private-demo boundary.
+- Cold live latency exceeded the design targets. Docker Compose validates, but the local
+  Docker daemon was unavailable, so local image builds were not observed in this session.
+- Two recorded STT meaning-loss expected failures remain open.
+
 ## 2026-09-17 · Session 6 — B2 groundwork; livekit installed, three defects unmasked
 
 **Goal (NAYANSEN):** proceed with B2 + the provider migration, parallelising sub-items where

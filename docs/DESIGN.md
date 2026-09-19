@@ -43,7 +43,7 @@ Three things make it defensible rather than a demo:
 
 ---
 
-## 3. Verified current state (as of commit `ddf963c`)
+## 3. Verified current state (release candidate, 19 September 2026)
 
 Not what the PRD says. What is in the repository.
 
@@ -58,12 +58,14 @@ Not what the PRD says. What is in the repository.
 | Moss context | `agent/aiscelapeus/moss_context.py` | **[BUILT]** Dual index (cloud-built protocol index loaded in-process + live `SessionIndex`), full latency instrumentation, `push_index()` archive |
 | Triage model | `agent/aiscelapeus/triage.py` | **[BUILT]** `Criticality` 1–5, 15 hard-escalation markers, `TriageState` with upward ratchet and history |
 | Agent + tools | `agent/aiscelapeus/agent.py` | **[BUILT]** 5 tools: `lookup_protocol`, `record_finding`, `recall_state`, `assess_criticality`, `escalate_to_clinician` |
-| SOAP generation | `agent/aiscelapeus/soap.py` | **[BUILT]** Generated from the Moss timeline, not the raw transcript |
-| Voice pipeline | `agent/aiscelapeus/main.py` | **[BUILT]** Deepgram `nova-3-medical` + diarization + medical keyterms → GPT-4o → ElevenLabs turbo v2.5, Silero VAD, interruptions on |
-| Event stream | `web/lib/types.ts`, `useTriageStream.ts` | **[BUILT]** 6 typed topics over the LiveKit data channel |
+| SOAP generation | `agent/aiscelapeus/soap.py` | **[BUILT]** Gemini generation from the Moss timeline, not the raw transcript; explicit key and bounded request |
+| Voice pipeline | `agent/aiscelapeus/main.py` | **[BUILT]** Deepgram `nova-3-medical` + diarization + medical keyterms → Gemini fallback chain → Deepgram Aura-2, Silero VAD, interruptions on |
+| Clinician lifecycle | `agent/aiscelapeus/clinician.py`, `main.py` | **[BUILT]** Active-participant roster, targeted late-join state/timeline snapshot, lost-presence transition |
+| Event stream | `web/lib/types.ts`, `triageStream.ts` | **[BUILT]** Strict typed topics over the LiveKit data channel; bounded reducer and snapshot/live reconciliation |
 | Responder UI | `web/app/page.tsx` | **[BUILT]** Hands-free view with live latency readout |
 | Clinician UI | `web/app/doctor/page.tsx` | **[BUILT]** Join by incident ID, timeline |
-| Token minting | `web/app/api/token/route.ts` | **[PARTIAL]** Validates and scopes tightly; **does not authenticate the caller** |
+| Token minting | `web/app/api/token/route.ts` | **[PARTIAL]** Validates/scopes tightly, separates role access codes, and dispatches the named worker; access codes are not identity-backed RBAC |
+| Judge replay + delivery | `web/app/demo`, `compose.yaml`, `.github/workflows/release.yml` | **[BUILT]** Zero-credential deterministic replay, production images, wheel and standalone archive path |
 
 ### 3.2 Not built
 
@@ -71,7 +73,7 @@ Not what the PRD says. What is in the repository.
 |---|---|---|
 | **No FastAPI service anywhere in the repo** | **Critical** | Verified: `fastapi` appears in no source file. FastAPI is in the sprint's mandatory stack, and PRD §10's `/v1/audit/summary/{id}` and `/v1/session/playback/{id}` do not exist |
 | **`correlation_id` does not exist in code** | **Critical** | Verified: the string appears only in the README, a docstring, and the v2 prompt. There is no session root span either, so `span()` calls made from separate async tasks become trace *roots*, not children — the "one trace per incident" claim is very likely false today. This is the mentor's #1 gap and it is closer to open than the README implies |
-| No authentication on the media plane | **Critical** | Anyone who can reach `/api/token` can mint a token for any room |
+| No identity-backed authentication on the media plane | **Critical** | Separate timing-safe role access codes protect the private demo, but they do not identify a clinician or provide revocation/RBAC |
 | No encryption at rest | **Critical** | Nothing is persisted to encrypt yet — which is itself the problem |
 | No durable audit store | High | Moss holds the incident; nothing survives as a queryable, tamper-evident record |
 | No audio recording or playback | High | PRD §5.4 "synchronized playback" is unimplemented |
@@ -755,12 +757,12 @@ Every requirement carries an ID and a quantitative, testable criterion. `Ev` nam
 | FR-005 | Protocol retrieval before clinical instruction | 100 % of `clinical_instruction` turns cite ≥ 1 protocol ID | gate metric | PARTIAL |
 | FR-006 | Criticality 1–5 with upward ratchet | No downgrade occurs in any harness run; 100 % of scripted level rises recorded within 1 turn | harness | BUILT |
 | FR-007 | Deterministic hard escalation | 0 false negatives on the 15-marker set across 100 phrasings | harness | BUILT |
-| FR-008 | Clinician bridge | Bridge requested within 500 ms of the escalation decision; clinician media joinable within 3 s of accept | OTel | BUILT |
-| FR-009 | Clinician catch-up summary on late join | Summary delivered before clinician's first turn, within 2 s of join; contains 100 % of criticality changes and ≥ 90 % of recorded facts | SCN-A06 | NEW |
-| FR-010 | Agent resumes lead on clinician drop | Resumption announced within 2 s of disconnect detection | SCN-A05 | NEW |
-| FR-011 | SOAP note generation | Generated within 30 s of session end; every SOAP claim traceable to a timeline fact; 0 unsupported assertions across 10 scenarios | harness + review | BUILT |
+| FR-008 | Clinician bridge | Bridge requested within 500 ms of the escalation decision; clinician media joinable within 3 s of accept | OTel | PARTIAL — room join works; external paging/accept transport absent |
+| FR-009 | Clinician catch-up summary on late join | Summary delivered before clinician's first turn, within 2 s of join; contains 100 % of criticality changes and ≥ 90 % of recorded facts | SCN-A06 | PARTIAL — targeted state/timeline snapshot built and real-room delivered; timing/coverage target not yet measured |
+| FR-010 | Agent resumes lead on clinician drop | Resumption announced within 2 s of disconnect detection | SCN-A05 | PARTIAL — deterministic lost-state transition and UI built; spoken announcement timing not measured |
+| FR-011 | SOAP note generation | Generated within 30 s of session end; every SOAP claim traceable to a timeline fact; 0 unsupported assertions across 10 scenarios | harness + review | PARTIAL — real Gemini generation passed; 10-scenario support audit remains |
 | FR-012 | Synchronised playback | Audio, transcript, prosody and criticality aligned within 100 ms across a 10-minute session | manual + test | NEW |
-| FR-013 | Scenario harness, two runners | Headless suite green in CI in ≤ 120 s; live runner completes SCN-005 end to end | CI | NEW |
+| FR-013 | Scenario harness, two runners | Headless suite green in CI in ≤ 120 s; live runner completes SCN-005 end to end | CI | PARTIAL — headless 6/25 green; real transport smoke passed; spoken SCN-005 live runner remains |
 | FR-014 | Offline local guidance | Responder receives protocol-backed guidance within 2 s of Tier-3 entry, with capability limits stated | SCN-A04 | NEW |
 | FR-015 | Deferred sync | 100 % of queued facts, transcripts, audio chunks and spans reconcile after a 5-minute blackout, 0 duplicates, 0 losses | SCN-A04 | NEW |
 
@@ -933,7 +935,7 @@ Each day ends with a green headless harness run and a commit to `main`.
 - [ ] On-device guidance with stated limits (**OFF-004, OFF-005**).
 - [ ] IndexedDB queue: audio, transcripts, facts, spans (**OFF-006**).
 - [ ] `/v1/offline/sync` replay, dedup, conflict retention (**OFF-007, OFF-008**).
-- [ ] Clinician drop-off resumption (**FR-010**) and late-join catch-up summary (**FR-009**).
+- [x] Clinician drop-off state/responder warning and late-join targeted snapshot (**FR-009**, **FR-010**); spoken resumption timing remains unproved.
 - [ ] **PRD v2 complete — all four parts — submitted for Dr. Agent review at 21:00.**
 
 ### Day 4 — Fri 18 Sept · Harness, audit surface, proof
@@ -956,7 +958,7 @@ Each day ends with a green headless harness run and a commit to `main`.
 - [ ] Auditor console: session list, chain verification, SOAP.
 - [ ] Incorporate Dr. Agent feedback from 17 Sept.
 - [ ] Full live run of SCN-005 against real connectors, end to end, recorded.
-- [ ] Demo script and video.
+- [x] Interactive deterministic judge replay and operator runbook. Video remains optional.
 
 ### Day 6 — Sun 20 Sept · Buffer and submission
 

@@ -7,6 +7,7 @@ const mocked = vi.hoisted(() => ({
     apiSecret: string;
     options: Record<string, unknown>;
     grants: Array<Record<string, unknown>>;
+    roomConfig?: unknown;
   }>,
 }));
 
@@ -23,15 +24,36 @@ vi.mock("livekit-server-sdk", () => ({
       this.instance.grants.push(grant);
     }
 
+    set roomConfig(value: unknown) {
+      this.instance.roomConfig = value;
+    }
+
     async toJwt() {
       return "signed-test-token";
+    }
+  },
+  RoomAgentDispatch: class {
+    constructor(values: Record<string, unknown>) {
+      Object.assign(this, values);
+    }
+  },
+  RoomConfiguration: class {
+    constructor(values: Record<string, unknown>) {
+      Object.assign(this, values);
     }
   },
 }));
 
 import { POST } from "./route";
 
-const ENV_KEYS = ["LIVEKIT_API_KEY", "LIVEKIT_API_SECRET", "LIVEKIT_URL", "NEXT_PUBLIC_LIVEKIT_URL"] as const;
+const ENV_KEYS = [
+  "LIVEKIT_API_KEY",
+  "LIVEKIT_API_SECRET",
+  "LIVEKIT_URL",
+  "NEXT_PUBLIC_LIVEKIT_URL",
+  "RESPONDER_ACCESS_CODE",
+  "CLINICIAN_ACCESS_CODE",
+] as const;
 const originalEnv = Object.fromEntries(ENV_KEYS.map((key) => [key, process.env[key]]));
 
 function request(body: unknown, contentType = "application/json") {
@@ -47,6 +69,8 @@ beforeEach(() => {
   process.env.LIVEKIT_API_KEY = "test-key";
   process.env.LIVEKIT_API_SECRET = "test-secret";
   process.env.LIVEKIT_URL = "wss://livekit.invalid";
+  process.env.RESPONDER_ACCESS_CODE = "responder-code-2026";
+  process.env.CLINICIAN_ACCESS_CODE = "clinician-code-2026";
   delete process.env.NEXT_PUBLIC_LIVEKIT_URL;
 });
 
@@ -84,7 +108,10 @@ describe("POST /api/token", () => {
   });
 
   it.each(["responder", "clinician"] as const)("mints one narrowly scoped %s token", async (role) => {
-    const response = await POST(request({ room: "inc-123", identity: `${role}-1`, role }));
+    const accessCode = role === "clinician" ? "clinician-code-2026" : "responder-code-2026";
+    const response = await POST(
+      request({ room: "inc-123", identity: `${role}-1`, role, accessCode }),
+    );
     const payload = await response.json();
 
     expect(response.status).toBe(200);
@@ -111,5 +138,44 @@ describe("POST /api/token", () => {
         canPublishData: false,
       },
     ]);
+    // Either role may be first and therefore create the room. LiveKit applies
+    // token room configuration only on room creation, so both must carry the
+    // same idempotent named dispatch.
+    expect(mocked.instances[0].roomConfig).toEqual({
+      agents: [{ agentName: "aiscelapeus" }],
+    });
+  });
+
+  it.each([
+    { role: "responder", accessCode: "wrong" },
+    { role: "clinician", accessCode: "responder-code-2026" },
+    { role: "clinician", accessCode: undefined },
+  ] as const)("rejects unauthorized $role token requests", async ({ role, accessCode }) => {
+    const response = await POST(
+      request({ room: "inc-123", identity: `${role}-1`, role, accessCode }),
+    );
+    expect(response.status).toBe(401);
+    expect(mocked.instances).toHaveLength(0);
+  });
+
+  it.each([
+    ["equal", "same-access-code-2026", "same-access-code-2026"],
+    ["blank", "                    ", "clinician-code-2026"],
+    ["weak", "short", "clinician-code-2026"],
+  ])("fails closed for an invalid %s role-code policy", async (_case, responder, clinician) => {
+    process.env.RESPONDER_ACCESS_CODE = responder;
+    process.env.CLINICIAN_ACCESS_CODE = clinician;
+
+    const response = await POST(
+      request({
+        room: "inc-123",
+        identity: "responder-1",
+        role: "responder",
+        accessCode: responder,
+      }),
+    );
+
+    expect(response.status).toBe(500);
+    expect(mocked.instances).toHaveLength(0);
   });
 });

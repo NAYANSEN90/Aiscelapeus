@@ -20,6 +20,10 @@ dependencies = [
     # no voice_id parameter at all.
     "livekit-plugins-deepgram",
     "livekit-plugins-google",
+    # SOAP generation calls the same provider directly after the voice session;
+    # declare the client rather than relying on the LiveKit plugin's transitive
+    # dependency graph to keep that import available.
+    "google-genai",
     "livekit-plugins-silero",
     # Removed, and this was a CI break rather than untidiness: elevenlabs and
     # openai are the two vendors dropped in docs/WORKLOG.md Session 2, neither
@@ -135,6 +139,9 @@ no_implicit_optional = true
 check_untyped_defs = true
 # Keep the suppressions below honest: an unused per-module override is an error.
 warn_unused_configs = true
+# Required for the narrow NumPy override below to apply to its `.pyi` files;
+# without it mypy follows the stub despite `follow_imports = "skip"`.
+follow_imports_for_stubs = true
 
 # `warn_unreachable` is OFF, and this is the one suppression that is not about
 # missing stubs. It flags the deliberate `isinstance` guards in
@@ -159,6 +166,17 @@ module = [
     "opentelemetry.exporter.*",
 ]
 ignore_missing_imports = true
+
+# NumPy is not imported by first-party runtime code; it is an implementation
+# dependency of LiveKit. NumPy 2.5 installs only on Python >=3.12 and its stubs
+# use PEP 695 syntax unconditionally, while this package deliberately checks
+# its own Python 3.11 surface. Do not let a transitive vendor stub make that
+# first-party target impossible to parse. This is scoped to NumPy rather than
+# skipping LiveKit, so our calls against LiveKit's typed public API remain
+# checked (that check has found real runtime breaks in this repository).
+[[tool.mypy.overrides]]
+module = ["numpy", "numpy.*"]
+follow_imports = "skip"
 
 # REAL DEBT, not a stub gap. `_CompactConsoleExporter` is duck-typed against the
 # OTel `SpanExporter` interface but does not subclass it, so passing it to

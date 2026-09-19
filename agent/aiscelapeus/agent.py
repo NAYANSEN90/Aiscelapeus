@@ -11,6 +11,7 @@ from livekit.agents import Agent, ModelSettings, RunContext, function_tool
 from livekit.agents import llm as lk_llm
 from livekit.rtc import AudioFrame
 
+from .clinician import ClinicianRoster
 from .config import Settings
 from .escalation import SOURCE_TOOL, apply_hard_escalation
 from .moss_context import EmergencyContext
@@ -65,11 +66,13 @@ class AiscelapeusAgent(Agent):
         context: EmergencyContext,
         state: TriageState,
         publish: Publisher,
+        clinician_roster: ClinicianRoster | None = None,
     ) -> None:
         self.settings = settings
         self.context = context
         self.state = state
         self.publish = publish
+        self.clinician_roster = clinician_roster or ClinicianRoster()
         # What `lookup_protocol` retrieved on the CURRENT responder turn, and
         # the only thing the output gate is allowed to treat as a citation.
         # Its lifetime is the safety property - set in `lookup_protocol`,
@@ -579,6 +582,13 @@ class AiscelapeusAgent(Agent):
         status = self.state.request_escalation(reason, key=key)
         if before is not EscalationStatus.NOT_NEEDED:
             return False
+
+        # A clinician may have opened the dashboard before the patient crossed
+        # the escalation threshold. Presence alone never creates a request, but
+        # once this call creates one the already-active participant is joined
+        # immediately rather than leaving the responder UI stuck on "waiting".
+        self.clinician_roster.reconcile(self.state)
+        status = self.state.escalation
 
         with span(
             "triage.escalation",

@@ -1,5 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { AccessToken } from "livekit-server-sdk";
+import {
+  AccessToken,
+  RoomAgentDispatch,
+  RoomConfiguration,
+} from "livekit-server-sdk";
+import { createHash, timingSafeEqual } from "node:crypto";
+import { liveAccessPolicy } from "@/lib/liveAccessPolicy";
 
 /**
  * Mints a short-lived LiveKit access token.
@@ -10,9 +16,9 @@ import { AccessToken } from "livekit-server-sdk";
  * validates every input before signing. It is deliberately the only place in the
  * web app that touches LIVEKIT_API_SECRET.
  *
- * Before production this needs a real identity check in front of it (OAuth2/JWT
- * from the responder app, RBAC for the clinician role) plus rate limiting at the
- * gateway. The shape below is what that check would wrap, not a replacement for it.
+ * Production additionally requires separate responder and clinician access
+ * codes. They are a demo boundary, not user identity: a real deployment still
+ * needs OAuth2/JWT, clinician RBAC and rate limiting at the gateway.
  */
 
 export const dynamic = "force-dynamic";
@@ -22,6 +28,13 @@ type Role = "responder" | "clinician";
 const ROOM_PATTERN = /^[a-zA-Z0-9][a-zA-Z0-9_-]{2,63}$/;
 const IDENTITY_PATTERN = /^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$/;
 const TOKEN_TTL_SECONDS = 15 * 60;
+
+function accessCodeMatches(presented: unknown, configured: string): boolean {
+  if (typeof presented !== "string") return false;
+  const expected = createHash("sha256").update(configured).digest();
+  const actual = createHash("sha256").update(presented).digest();
+  return timingSafeEqual(expected, actual);
+}
 
 export async function POST(req: NextRequest) {
   const apiKey = process.env.LIVEKIT_API_KEY;
@@ -35,7 +48,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  let body: { room?: unknown; identity?: unknown; role?: unknown };
+  let body: { room?: unknown; identity?: unknown; role?: unknown; accessCode?: unknown };
   try {
     body = await req.json();
   } catch {
@@ -55,6 +68,7 @@ export async function POST(req: NextRequest) {
       { status: 400 }
     );
   }
+
   if (!IDENTITY_PATTERN.test(identity)) {
     return NextResponse.json(
       { error: "Invalid identity. Use 1-64 characters: letters, digits, dash, underscore." },
@@ -62,11 +76,34 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  const accessPolicy = liveAccessPolicy(process.env);
+  if (accessPolicy.problems.length > 0) {
+    return NextResponse.json(
+      { error: "Server live access policy is invalid" },
+      { status: 500 },
+    );
+  }
+  const configuredAccessCode =
+    role === "clinician" ? accessPolicy.clinicianCode : accessPolicy.responderCode;
+  if (accessPolicy.required && !configuredAccessCode) {
+    return NextResponse.json({ error: "Server live access policy is invalid" }, { status: 500 });
+  }
+  if (configuredAccessCode && !accessCodeMatches(body.accessCode, configuredAccessCode)) {
+    return NextResponse.json({ error: "Invalid live access code" }, { status: 401 });
+  }
+
   const token = new AccessToken(apiKey, apiSecret, {
     identity,
     name: identity,
     ttl: TOKEN_TTL_SECONDS,
     metadata: JSON.stringify({ role }),
+  });
+
+  // LiveKit applies token room configuration only when that token creates the
+  // room. Either supported role may arrive first, so both carry the same named
+  // dispatch. A later join to an existing room does not create a second job.
+  token.roomConfig = new RoomConfiguration({
+    agents: [new RoomAgentDispatch({ agentName: "aiscelapeus" })],
   });
 
   token.addGrant({

@@ -25,9 +25,12 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-from typing import Any, Awaitable, Callable
+import os
+from collections.abc import Iterable
+from collections.abc import Mapping, MutableMapping
+from typing import Any, Awaitable, Callable, Literal
 
-from livekit import agents
+from livekit import agents, rtc
 from livekit.agents import (
     Agent,
     AgentServer,
@@ -37,13 +40,22 @@ from livekit.agents import (
     telemetry as lk_telemetry,
     tts as lk_tts,
 )
+from livekit.agents import room_io
 from livekit.plugins import deepgram, google, silero
 from opentelemetry import trace as otel_trace
 
 from .agent import AiscelapeusAgent
+from .clinician import (
+    SNAPSHOT_TOPIC,
+    ClinicianRoster,
+    clinician_connection,
+    participant_role,
+    snapshot_payload,
+)
 from .config import ConfigError, ModelConfig, Settings, read_env
 from .escalation import apply_hard_escalation_to_utterance
 from .moss_context import EmergencyContext
+from .ports import FactRecord
 from .prompts import PROMPT_VERSION
 from .soap import generate_soap_note
 from .telemetry import setup_telemetry, span
@@ -61,9 +73,34 @@ server = AgentServer()
 
 Publisher = Callable[[str, dict[str, Any]], Awaitable[None]]
 Escalator = Callable[[str, str], Awaitable[None]]
+TimelineReader = Callable[[], Awaitable[list[FactRecord]]]
+SnapshotPublisher = Callable[[str, dict[str, Any]], Awaitable[None]]
+RetryDelay = Callable[[float], Awaitable[None]]
 
 #: The topic the responder UI and the doctor dashboard both read transcripts from.
 TRANSCRIPT_TOPIC = "triage.transcript"
+LIVEKIT_ENVIRONMENT_KEYS = ("LIVEKIT_URL", "LIVEKIT_API_KEY", "LIVEKIT_API_SECRET")
+
+
+def hydrate_livekit_environment(
+    *,
+    environ: MutableMapping[str, str] | None = None,
+    resolved: Mapping[str, str] | None = None,
+) -> None:
+    """Expose root dotenv values to the LiveKit worker CLI without overriding env.
+
+    `Settings.load` deliberately resolves dotenv into a mapping, while the
+    vendor CLI reads `os.environ` directly before any job enters our code. This
+    narrow adapter keeps real environment precedence and copies only the three
+    variables the CLI itself consumes.
+    """
+
+    target = os.environ if environ is None else environ
+    source = read_env() if resolved is None else resolved
+    for key in LIVEKIT_ENVIRONMENT_KEYS:
+        value = source.get(key, "").strip()
+        if value and not target.get(key, "").strip():
+            target[key] = value
 
 # The Gemini plugin reads `GOOGLE_API_KEY` from the environment; this project
 # standardises on `GEMINI_API_KEY`, which is what `config.REQUIRED_KEYS`
@@ -177,7 +214,13 @@ def build_llm(models: ModelConfig, *, api_key: str) -> lk_llm.LLM:
                 api_key=api_key,
             )
             for model in models.llm_chain.attempts
-        ]
+        ],
+        # The adapter's 5-second default is forwarded to Google as a manual API
+        # deadline. Gemini rejects any manual deadline below 10 seconds with a
+        # 400 before inference begins, which makes every healthy model in the
+        # fallback chain look unavailable. Keep a little margin above that hard
+        # provider boundary while retaining a bounded voice-turn failure time.
+        attempt_timeout=15.0,
     )
 
 
@@ -266,6 +309,266 @@ def make_transcript_handler(
             work.close()
 
     return _on_transcript
+
+
+def make_clinician_active_handler(
+    *,
+    roster: ClinicianRoster,
+    state: TriageState,
+    timeline: TimelineReader,
+    on_state_change: Callable[[], Awaitable[None]],
+    publish_snapshot: SnapshotPublisher,
+    spawn: Callable[[Awaitable[None]], None],
+    retry_delay: RetryDelay = asyncio.sleep,
+) -> Callable[[Any], None]:
+    """Build the synchronous LiveKit `participant_active` handler.
+
+    `participant_active`, not merely `participant_connected`, is the point at
+    which the SDK says a remote participant can receive data. The roster and
+    state transition happen synchronously so a simultaneous escalation sees the
+    clinician; timeline I/O and publishing are handed to the event loop.
+    """
+
+    def _on_active(participant: Any) -> None:  # noqa: ANN401 - SDK boundary
+        connection = clinician_connection(participant)
+        if connection is None:
+            return
+        identity, connection_id = connection
+        if not roster.activate(identity, connection_id):
+            return
+        state_changed = roster.reconcile(state)
+        work = _send_clinician_snapshot(
+            identity,
+            connection_id,
+            roster=roster,
+            state=state,
+            timeline=timeline,
+            state_changed=state_changed,
+            on_state_change=on_state_change,
+            publish_snapshot=publish_snapshot,
+            retry_delay=retry_delay,
+        )
+        try:
+            spawn(work)
+        except Exception:  # noqa: BLE001 - room emitter must survive scheduling
+            logger.exception(
+                "could not schedule clinician catch-up for session=%s identity=%s",
+                state.session_id,
+                identity,
+            )
+            work.close()
+
+    return _on_active
+
+
+async def _send_clinician_snapshot(
+    identity: str,
+    connection_id: str,
+    *,
+    roster: ClinicianRoster,
+    state: TriageState,
+    timeline: TimelineReader,
+    state_changed: bool,
+    on_state_change: Callable[[], Awaitable[None]],
+    publish_snapshot: SnapshotPublisher,
+    retry_delay: RetryDelay,
+) -> None:
+    """Send one active clinician the current state and durable timeline."""
+
+    # A fast connect/drop can remove the identity before this task gets CPU.
+    # Sending PHI to an already-departed participant is both stale and needless.
+    if not roster.is_active(identity, connection_id):
+        return
+
+    if state_changed:
+        try:
+            await on_state_change()
+        except Exception:  # noqa: BLE001 - catch-up must still be attempted
+            logger.exception(
+                "broadcasting clinician presence failed for session=%s",
+                state.session_id,
+            )
+
+    timeline_status: Literal["complete", "unavailable"] = "complete"
+    try:
+        facts = await timeline()
+    except Exception:  # noqa: BLE001 - send known state rather than no catch-up
+        logger.exception(
+            "reading clinician catch-up timeline failed for session=%s; "
+            "sending state with an explicit unavailable timeline",
+            state.session_id,
+        )
+        facts = []
+        timeline_status = "unavailable"
+
+    # The participant may have disconnected while the timeline read awaited.
+    if not roster.is_active(identity, connection_id):
+        return
+
+    payload = snapshot_payload(state, facts, timeline_status=timeline_status)
+    for attempt in range(3):
+        try:
+            await publish_snapshot(identity, payload)
+            return
+        except Exception:  # noqa: BLE001 - do not raise through room event task
+            if attempt == 2:
+                logger.exception(
+                    "publishing clinician catch-up failed after retries "
+                    "for session=%s identity=%s",
+                    state.session_id,
+                    identity,
+                )
+                return
+            await retry_delay(0.25 * (2**attempt))
+            if not roster.is_active(identity, connection_id):
+                return
+
+
+def make_clinician_disconnected_handler(
+    *,
+    roster: ClinicianRoster,
+    state: TriageState,
+    on_state_change: Callable[[], Awaitable[None]],
+    spawn: Callable[[Awaitable[None]], None],
+) -> Callable[[Any], None]:
+    """Build the room handler that exposes loss of the last clinician."""
+
+    def _on_disconnected(participant: Any) -> None:  # noqa: ANN401 - SDK boundary
+        identity = getattr(participant, "identity", None)
+        connection_id = getattr(participant, "sid", None)
+        # Metadata may be unavailable on a disconnect event. Membership, which
+        # was established from checked metadata on `participant_active`, is the
+        # authority here.
+        if (
+            not isinstance(identity, str)
+            or not isinstance(connection_id, str)
+            or not roster.deactivate(identity, connection_id)
+        ):
+            return
+        if not roster.reconcile(state):
+            return
+        work = _broadcast_clinician_loss(state, on_state_change)
+        try:
+            spawn(work)
+        except Exception:  # noqa: BLE001 - room emitter must survive scheduling
+            logger.exception(
+                "could not schedule clinician-loss broadcast for session=%s",
+                state.session_id,
+            )
+            work.close()
+
+    return _on_disconnected
+
+
+async def _broadcast_clinician_loss(
+    state: TriageState, on_state_change: Callable[[], Awaitable[None]]
+) -> None:
+    try:
+        await on_state_change()
+    except Exception:  # noqa: BLE001 - participant emitter must survive UI failure
+        logger.exception(
+            "broadcasting clinician loss failed for session=%s", state.session_id
+        )
+
+
+def seed_active_participants(
+    participants: Iterable[Any], on_active: Callable[[Any], None]
+) -> None:
+    """Replay current room membership through the normal active handler.
+
+    A worker can attach after a clinician is already active. Registering the
+    event handler first and then enumerating closes that startup gap; a
+    participant observed by both paths is deduplicated by its SID in the roster.
+    """
+
+    for participant in tuple(participants):
+        if (
+            getattr(participant, "state", None)
+            == rtc.ParticipantState.PARTICIPANT_STATE_ACTIVE
+        ):
+            on_active(participant)
+
+
+async def wait_for_role(room: Any, role: Literal["responder", "clinician"]) -> str:
+    """Return the identity of the first active participant with ``role``.
+
+    Both roles can create a room and dispatch the named worker. The media input
+    must nevertheless bind only to the responder; otherwise a clinician-first
+    room sends the doctor's microphone through the caller STT path forever.
+    """
+
+    loop = asyncio.get_running_loop()
+    found: asyncio.Future[str] = loop.create_future()
+
+    def _on_active(participant: Any) -> None:  # noqa: ANN401 - SDK boundary
+        identity = getattr(participant, "identity", None)
+        if (
+            not found.done()
+            and isinstance(identity, str)
+            and identity
+            and participant_role(participant) == role
+        ):
+            found.set_result(identity)
+
+    room.on("participant_active", _on_active)
+    try:
+        for participant in tuple(room.remote_participants.values()):
+            if (
+                getattr(participant, "state", None)
+                == rtc.ParticipantState.PARTICIPANT_STATE_ACTIVE
+            ):
+                _on_active(participant)
+        return await found
+    finally:
+        room.off("participant_active", _on_active)
+
+
+async def finalize_session(
+    *,
+    context: EmergencyContext,
+    settings: Settings,
+    gemini_key: str,
+    session_id: str,
+    state: TriageState,
+    publish: Publisher,
+) -> None:
+    """Durably close an incident even when media never starts.
+
+    The archive is attempted before optional SOAP generation. A slow or
+    unavailable model must never stand between the incident and its only
+    durable write, and ``aclose`` remains guaranteed when either operation
+    fails.
+    """
+    with span("session.shutdown", **{"session.id": session_id}):
+        try:
+            try:
+                archived = await context.archive()
+                if not archived.ok:
+                    logger.error(
+                        "Moss archive failed for %s: %s",
+                        session_id,
+                        archived.error,
+                    )
+            except Exception:  # noqa: BLE001 - shutdown must continue to close
+                logger.exception("Moss archive failed for %s", session_id)
+
+            try:
+                timeline = await context.timeline()
+                note = await generate_soap_note(
+                    settings=settings,
+                    api_key=gemini_key,
+                    session_id=session_id,
+                    timeline=timeline,
+                    state=state,
+                )
+                await publish("triage.soap", {"session_id": session_id, "note": note})
+                logger.info(
+                    "SOAP note generated for %s (%d chars)", session_id, len(note)
+                )
+            except Exception:  # noqa: BLE001 - SOAP is best effort at shutdown
+                logger.exception("SOAP generation failed for %s", session_id)
+        finally:
+            await context.aclose()
 
 
 async def _handle_utterance(
@@ -427,6 +730,47 @@ async def entrypoint(ctx: JobContext) -> None:
 
     # --- context ------------------------------------------------------------
     context = EmergencyContext(config=settings.moss, session_id=session_id)
+    state = TriageState(session_id=session_id)
+
+    async def publish(
+        topic: str,
+        payload: dict[str, Any],
+        *,
+        destination_identities: tuple[str, ...] = (),
+        propagate_error: bool = False,
+    ) -> None:
+        """Push a structured event to every participant in the room.
+
+        The responder UI and the doctor dashboard both render from this stream,
+        so there is one source of truth for triage state.
+        """
+        try:
+            await ctx.room.local_participant.publish_data(
+                json.dumps({"topic": topic, "data": payload}).encode("utf-8"),
+                reliable=True,
+                topic=topic,
+                destination_identities=list(destination_identities),
+            )
+        except Exception:  # noqa: BLE001 - never let UI plumbing kill a call
+            logger.debug("publish_data failed for %s", topic, exc_info=True)
+            if propagate_error:
+                raise
+
+    async def _shutdown() -> None:
+        await finalize_session(
+            context=context,
+            settings=settings,
+            gemini_key=gemini_key,
+            session_id=session_id,
+            state=state,
+            publish=publish,
+        )
+
+    # Register cleanup before the first external await. In particular, a
+    # clinician can create the job before a responder arrives; cancellation
+    # while waiting for that responder must still archive and unload Moss.
+    ctx.add_shutdown_callback(_shutdown)
+
     # `connect` reports rather than raises, so the failure is handled here
     # instead of killing the job before the responder is greeted. Retrieval
     # will fail closed - the tier gate raises TierViolation on a Class-0 lookup
@@ -449,29 +793,51 @@ async def entrypoint(ctx: JobContext) -> None:
             outcome.loaded_doc_count,
         )
 
-    state = TriageState(session_id=session_id)
-
-    async def publish(topic: str, payload: dict[str, Any]) -> None:
-        """Push a structured event to every participant in the room.
-
-        The responder UI and the doctor dashboard both render from this stream,
-        so there is one source of truth for triage state.
-        """
-        try:
-            await ctx.room.local_participant.publish_data(
-                json.dumps({"topic": topic, "data": payload}).encode("utf-8"),
-                reliable=True,
-                topic=topic,
-            )
-        except Exception:  # noqa: BLE001 - never let UI plumbing kill a call
-            logger.debug("publish_data failed for %s", topic, exc_info=True)
-
+    clinician_roster = ClinicianRoster()
     agent = AiscelapeusAgent(
         settings=settings,
         context=context,
         state=state,
         publish=publish,
+        clinician_roster=clinician_roster,
     )
+
+    async def publish_clinician_snapshot(
+        identity: str, payload: dict[str, Any]
+    ) -> None:
+        await publish(
+            SNAPSHOT_TOPIC,
+            payload,
+            destination_identities=(identity,),
+            propagate_error=True,
+        )
+
+    # `participant_active` is later than connected: the clinician can receive
+    # the targeted snapshot. Disconnects are reconciled by identity even when
+    # metadata has already disappeared from the SDK object.
+    clinician_active_handler = make_clinician_active_handler(
+        roster=clinician_roster,
+        state=state,
+        timeline=context.timeline,
+        on_state_change=agent._broadcast_state,
+        publish_snapshot=publish_clinician_snapshot,
+        spawn=spawn_on_loop,
+    )
+    ctx.room.on("participant_active", clinician_active_handler)
+    ctx.room.on(
+        "participant_disconnected",
+        make_clinician_disconnected_handler(
+            roster=clinician_roster,
+            state=state,
+            on_state_change=agent._broadcast_state,
+            spawn=spawn_on_loop,
+        ),
+    )
+    await ctx.connect()
+    seed_active_participants(
+        ctx.room.remote_participants.values(), clinician_active_handler
+    )
+    responder_identity = await wait_for_role(ctx.room, "responder")
 
     # --- pipeline -----------------------------------------------------------
     # Annotated because `AgentSession` is generic over its userdata type. Left
@@ -532,37 +898,13 @@ async def entrypoint(ctx: JobContext) -> None:
         ),
     )
 
-    async def _shutdown() -> None:
-        """Close out the incident: SOAP note, then archive the Moss index."""
-        with span("session.shutdown", **{"session.id": session_id}):
-            try:
-                timeline = await context.timeline()
-                note = await generate_soap_note(
-                    settings=settings,
-                    session_id=session_id,
-                    timeline=timeline,
-                    state=state,
-                )
-                await publish("triage.soap", {"session_id": session_id, "note": note})
-                logger.info("SOAP note generated for %s (%d chars)", session_id, len(note))
-            except Exception:  # noqa: BLE001
-                logger.exception("SOAP generation failed for %s", session_id)
-
-            # `archive` reports rather than raises: it is the only durable
-            # write in the system, so "did the incident record reach storage"
-            # must be a value the caller inspects, not an exception that may or
-            # may not have been thrown.
-            archived = await context.archive()
-            if not archived.ok:
-                logger.error(
-                    "Moss archive failed for %s: %s", session_id, archived.error
-                )
-
-            await context.aclose()
-
-    ctx.add_shutdown_callback(_shutdown)
-
-    await session.start(agent, room=ctx.room)
+    await session.start(
+        agent,
+        room=ctx.room,
+        room_options=room_io.RoomOptions(
+            participant_identity=responder_identity,
+        ),
+    )
 
     await publish("triage.state", state.to_payload())
     # THE OPENING TURN MUST BE A QUESTION AND NOTHING ELSE, and that is now a
@@ -599,4 +941,5 @@ async def entrypoint(ctx: JobContext) -> None:
 
 
 if __name__ == "__main__":
+    hydrate_livekit_environment()
     agents.cli.run_app(server)

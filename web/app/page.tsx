@@ -4,17 +4,10 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Room, RoomEvent, Track } from "livekit-client";
 import { useTriageStream } from "@/lib/useTriageStream";
 import { LEVEL_STYLES } from "@/lib/types";
+import { escalationMessage } from "@/lib/escalationPresentation";
+import { newIncidentId, responderIdentityFor } from "@/lib/incidentIdentity";
 
 type Phase = "idle" | "connecting" | "live" | "error";
-
-function newSessionId() {
-  // An incident ID is the only thing standing between a stranger and live
-  // audio of an emergency, because the token route grants on room name alone.
-  // The previous form - a known timestamp plus four base36 characters of
-  // Math.random - was roughly 20 bits of non-cryptographic randomness and
-  // guessable from a demo stage. crypto.randomUUID is 122 bits from a CSPRNG.
-  return `inc-${crypto.randomUUID()}`;
-}
 
 export default function ResponderPage() {
   const [room] = useState(() => new Room({ adaptiveStream: true, dynacast: true }));
@@ -23,11 +16,13 @@ export default function ResponderPage() {
   // Generated during the first render rather than in an effect: an effect
   // renders once with an empty incident ID before correcting itself, and any
   // code reading the ID in that window sees "".
-  const [sessionId] = useState(newSessionId);
+  const [sessionId, setSessionId] = useState(newIncidentId);
   const [micLive, setMicLive] = useState(false);
   const [agentSpeaking, setAgentSpeaking] = useState(false);
+  const [accessCode, setAccessCode] = useState("");
 
-  const stream = useTriageStream(room);
+  const stream = useTriageStream(room, sessionId);
+  const escalationStatus = escalationMessage(stream.state);
 
   // Play the agent's audio as soon as it publishes.
   useEffect(() => {
@@ -65,8 +60,12 @@ export default function ResponderPage() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           room: sessionId,
-          identity: `responder-${Math.random().toString(36).slice(2, 8)}`,
+          // Stable for every retry/reconnect within this incident. RoomIO is
+          // deliberately pinned to this identity so a replacement random
+          // identity cannot leave the worker listening to the departed peer.
+          identity: responderIdentityFor(sessionId),
           role: "responder",
+          accessCode,
         }),
       });
       const payload = await res.json();
@@ -81,12 +80,16 @@ export default function ResponderPage() {
       setError(err instanceof Error ? err.message : String(err));
       setPhase("error");
     }
-  }, [room, sessionId]);
+  }, [accessCode, room, sessionId]);
 
   const disconnect = useCallback(async () => {
     await room.disconnect();
     setPhase("idle");
     setMicLive(false);
+    setAgentSpeaking(false);
+    // Ending a call ends the incident. A later Start must create a fresh room
+    // and worker lifecycle rather than reusing archived Moss state.
+    setSessionId(newIncidentId());
   }, [room]);
 
   const toggleMic = useCallback(async () => {
@@ -116,11 +119,27 @@ export default function ResponderPage() {
             <a href="/doctor" className="text-sky-400 hover:underline">
               Clinician dashboard →
             </a>
+            <div>
+              <a href="/demo" className="text-violet-400 hover:underline">
+                Watch a no-setup replay →
+              </a>
+            </div>
           </div>
         </header>
 
         {/* Connection */}
         <section className="mt-6 flex flex-wrap items-center gap-3">
+          {phase !== "live" && (
+            <input
+              type="password"
+              autoComplete="off"
+              value={accessCode}
+              onChange={(event) => setAccessCode(event.target.value)}
+              placeholder="Live access code (hosted builds)"
+              aria-label="Responder live access code"
+              className="w-72 rounded-lg border border-neutral-700 bg-neutral-900 px-4 py-3 text-sm outline-none focus:border-sky-600"
+            />
+          )}
           {phase !== "live" ? (
             <button
               onClick={connect}
@@ -171,14 +190,10 @@ export default function ResponderPage() {
             <p className="mt-2 text-sm text-neutral-300">
               {stream.state?.rationale ?? "No assessment yet."}
             </p>
-            {stream.escalation && (
+            {escalationStatus && (
               <p className="mt-3 rounded-md bg-red-950/60 px-3 py-2 text-sm text-red-200 ring-1 ring-red-800">
-                {stream.state?.clinician_present
-                  ? "Clinician joined"
-                  : stream.state?.escalation === "clinician_lost"
-                    ? "Clinician disconnected — the agent remains with you"
-                    : "Clinician requested — waiting for them to join"}
-                {" — "}{stream.escalation.reason}
+                {escalationStatus}
+                {stream.state?.escalation_reason && ` — ${stream.state.escalation_reason}`}
               </p>
             )}
           </div>

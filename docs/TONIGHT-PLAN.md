@@ -17,7 +17,7 @@ The build is ready for tonight's live demonstration only when all of these are t
 3. A responder can join a real LiveKit room, publish microphone audio, hear the agent,
    and see transcript, criticality, retrieval, and escalation events.
 4. A clinician can join the same incident after it has begun and immediately receive a
-   current state plus the recorded timeline.
+   current state plus the recorded timeline, or an explicit warning that history is unavailable.
 5. The clinician join and disconnect move the escalation lifecycle through
    `REQUESTED -> CLINICIAN_JOINED -> CLINICIAN_LOST`; the UI never says "bridged" merely
    because a request exists.
@@ -25,6 +25,9 @@ The build is ready for tonight's live demonstration only when all of these are t
    model inaction and the output gate refuses an unsupported clinical number.
 7. The demo runbook records the exact commands, URLs, expected signals, recovery steps,
    and remaining non-production limitations.
+8. A fresh checkout has a secret-free, repeatable delivery path: Compose starts the
+   production agent and web images, readiness fails closed on missing configuration, and
+   a tagged release publishes downloadable artifacts.
 
 ## Counterfactual failure matrix
 
@@ -33,7 +36,7 @@ The order below is driven by the failure that would occur if each assumption wer
 | Assumption | Counterfactual | Observable test | Required response |
 |---|---|---|---|
 | "Clinician requested" means a clinician is present | Nobody has joined, but the responder stops acting because the UI says "bridged" | Request escalation without a clinician participant | UI says **requested / waiting**, never joined |
-| A late clinician sees the incident | LiveKit data messages sent before join are gone | Join after findings and escalation already exist | Targeted snapshot contains state and the full current timeline |
+| A late clinician sees the incident | LiveKit data messages sent before join are gone | Join after findings and escalation already exist | Targeted snapshot contains state and the full current timeline, or explicitly marks history unavailable |
 | A clinician remains on the call | Their network drops while the responder believes help is present | Disconnect the clinician participant | State becomes `CLINICIAN_LOST`; responder is told the agent remains in charge |
 | The token route is safe because room IDs are random | An invalid role or malformed request still receives a usable token | Route tests over malformed JSON, identifiers, role, missing config, and grants | Reject closed with no token |
 | A build that worked once will work tonight | `next/font/google` needs network during the build | Run `npm run build` with no font-network access | Build uses no remote font fetch |
@@ -52,7 +55,7 @@ The order below is driven by the failure that would occur if each assumption wer
 - No `.env*` secret file and no configured LiveKit, Moss, Deepgram, or Gemini credential
   value occurs in any reachable commit.
 
-### T1 — make the web boundary testable and honest
+### T1 — make the web boundary testable and honest — DONE
 
 - Extract the data-channel reducer as a pure function and test every topic, malformed
   envelope handling, bounded buffers, snapshot replacement, and latency aggregation.
@@ -61,7 +64,7 @@ The order below is driven by the failure that would occur if each assumption wer
 - Remove the remote Google-font build dependency.
 - Enable the web test job in CI once it has real tests.
 
-### T2 — clinician lifecycle and late-join catch-up
+### T2 — clinician lifecycle and late-join catch-up — DONE
 
 - Parse participant metadata defensively at one boundary.
 - On an active clinician participant, send a state/timeline snapshot and mark joined only
@@ -69,20 +72,40 @@ The order below is driven by the failure that would occur if each assumption wer
 - On clinician disconnect, mark lost and broadcast it.
 - Test malformed metadata, non-clinicians, duplicate active events, proactive joins,
   requested joins, disconnects, empty timelines, and publish/timeline failures.
+- Register durable shutdown before any external await, keep responder media identity stable
+  for retries, and rotate to a fresh incident after an explicit call end.
 
-### T3 — real-room smoke run
+### T3 — real-room smoke run — TRANSPORT PROVED, BROWSER INPUT OPEN
 
-- Start the agent and web app from the configured local `.env` without copying secrets.
-- Join responder and clinician browsers to one incident.
-- Execute a short arrest scenario and an unsupported-number gate scenario.
-- Record pass/fail evidence, not credentials or patient data.
+- Started the production worker and standalone web server from ignored local
+  configuration without copying secrets.
+- Joined responder and clinician RTC clients to one real incident. Named dispatch,
+  agent audio publication, `triage.state`, targeted `triage.snapshot`, Gemini reply,
+  Deepgram synthesis/playout, and Gemini SOAP generation all completed.
+- Browser automation was unavailable on this host, so microphone capture, audible
+  browser playback, and a spoken arrest/gate scenario remain a manual rehearsal item.
+- Evidence: `docs/evidence/2026-09-19-live-smoke.md`.
 
-### T4 — reconciliation and final push
+### T4 — reconciliation and final push — IN PROGRESS
 
 - Bring `README.md`, `BUILD-PLAN.md`, and the requirements/run instructions into agreement
   with the actual Gemini + Deepgram runtime.
+- Prove the download-to-run path from a clean Git archive, build both production images,
+  and keep all credential material outside Git and image layers.
 - Run the full gate again, independently review each implementation diff, commit, run the
   secret-history audit, and push.
+
+### T5 — judge delivery — LOCAL PATH DONE, HOSTED DEPLOY OPEN
+
+- `/demo` contains a permanently labeled recorded simulation with emergency and
+  non-emergency scenarios, replay controls, progress, and accessible status.
+- Every replay frame crosses the production JSON parser and reducer; malformed fixtures
+  fail visibly rather than silently becoming a convincing mock.
+- The documented target is Vercel for the zero-credential replay and a long-lived
+  container host for the persistent LiveKit worker. No public hosted URL has been
+  deployed or evidenced from this workspace yet.
+- Compose, production Dockerfiles, readiness, a tagged-release workflow, Python wheel,
+  and standalone Next archive provide the download-to-run and downloadable paths.
 
 ## Explicitly outside tonight's claim
 
