@@ -16,6 +16,15 @@
 # strictly weaker claim than "all of them do", and the difference is exactly
 # where defect F-001 hid - a single surviving marker masked two independent
 # failures underneath a correct-looking criticality level.
+#
+# `hard: false` splits a third claim out of `expect`, for findings that must be
+# DETECTED without forcing an escalation. Detection and escalation were one
+# question while every marker was an arrest presentation; `pallor` is the first
+# that is not. Forcing Critical is irrevocable - `escalation.py` sets it at
+# EVIDENCE grade, and ASM-14 lets nothing lower it, not even a clinician at the
+# patient's side reporting they are awake and talking - so the power is granted
+# per finding and the corpus states which findings have it. The default is
+# `true`: an entry that says nothing escalates, as every entry did before.
 
 # ---------------------------------------------------------------- must escalate
 # Breathing absent or failing.
@@ -122,6 +131,57 @@
   why: >
     Same clinical sign, different word order. Substring matching on "gone
     blue" or "turning blue" missed it.
+
+# Pallor. A DIFFERENT finding from cyanosis - poor perfusion rather than
+# deoxygenated haemoglobin - and the way an untrained bystander describes a
+# peri-arrest patient at least as often as "blue". The corpus had no entry at
+# all, and `s08_site_arrest` turn 2 ("He's grey, he's gone grey", a construction
+# worker in cardiac arrest) fired nothing.
+- text: "He's gone grey"
+  expect: pallor
+  hard: false
+  why: baseline
+
+- text: "He's turning grey"
+  expect: pallor
+  hard: false
+  why: baseline
+
+- text: "He's grey, he's gone grey"
+  expect: pallor
+  hard: false
+  why: >
+    Verbatim from s08_site_arrest turn 2. The bare copula form ("he's grey")
+    and the change-of-state form in one breath, which is how it is actually
+    said.
+
+- text: "He's ashen"
+  expect: pallor
+  hard: false
+  why: >
+    The single word that means only this. No colour term and no change verb, so
+    a pattern built solely around "gone/turning <colour>" misses it.
+
+- text: "He's white as a sheet"
+  expect: pallor
+  hard: false
+  why: >
+    The idiom. "white" alone is far too common to match, so this fires on the
+    whole simile rather than the colour word.
+
+- text: "He's gone a funny colour"
+  expect: pallor
+  hard: false
+  why: >
+    Names no colour at all. A frightened caller who cannot say WHICH colour is
+    still reporting the change, and the change is the finding.
+
+- text: "She's grey in the face"
+  expect: pallor
+  hard: false
+  why: >
+    Scoped by the body part rather than by a change verb, so a stative report
+    with no "gone"/"turning" still fires.
 
 # Airway.
 - text: "She can't breathe"
@@ -400,6 +460,56 @@
 - text: "I've put a dressing on the wound"
   expect: null
   why: negative control, ordinary intervention report
+
+# Colour words in ordinary description. `pallor` is the marker most exposed to
+# these: "grey" and "white" are among the commonest adjectives in English and a
+# bare `\bgrey\b` fires on every one of them. The marker must be scoped to the
+# casualty's colour CHANGING, or to their skin or face - never to a colour word
+# alone. Each entry below is a sentence a caller could plausibly say on a real
+# call while describing the scene.
+- text: "He's got grey hair"
+  expect: null
+  why: >
+    The colour belongs to a body part that is ORDINARILY that colour. This is
+    the single likeliest false positive: a caller describing the casualty so
+    the crew can identify them.
+
+- text: "The grey car is blocking the entrance"
+  expect: null
+  why: negative control, a colour describing a vehicle
+
+- text: "He's wearing a grey jumper"
+  expect: null
+  why: negative control, a colour describing clothing
+
+- text: "There's a white van outside"
+  expect: null
+  why: >
+    "white" is worse than "grey" - it heads more ordinary noun phrases than it
+    ever describes a casualty. Nothing may fire on the bare colour.
+
+- text: "He's got a white shirt on"
+  expect: null
+  why: negative control, clothing again, in the possessive shape
+
+- text: "The walls are white and the floor is grey"
+  expect: null
+  why: >
+    Both colour words as stative predicates, with a copula, about the scene.
+    Pins the marker to the CASUALTY rather than to "<anything> is grey".
+
+- text: "She's not grey"
+  expect: null
+  why: >
+    Explicit negation of the finding. The negation mechanism must govern the new
+    marker exactly as it governs every other one.
+
+- text: "He was grey but he's got his colour back"
+  expect: null
+  why: >
+    A recovery narrative in past tense with an explicit contradiction, which is
+    the only shape `_is_suppressed` suppresses on tense. "got his colour back"
+    is how the recovery is actually reported.
 
 # Controls on the clause-scoped suppression itself. Narrowing suppression can
 # only make the net fire more often, so these are the entries that bound how

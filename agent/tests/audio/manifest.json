@@ -1,0 +1,1744 @@
+{
+  "version": 1,
+  "built_at": "2026-09-18T02:11:58Z",
+  "sample_rate": 16000,
+  "seed": 20260917,
+  "stt": {
+    "model": "nova-3-medical",
+    "language": "en-US",
+    "smart_format": true,
+    "numerals": true,
+    "keyterms": [
+      "tourniquet",
+      "AED",
+      "defibrillator",
+      "adrenaline",
+      "epinephrine",
+      "anaphylaxis",
+      "CPR",
+      "compressions",
+      "unresponsive",
+      "haemorrhage"
+    ]
+  },
+  "scenarios": {
+    "s01_kitchen_cut": {
+      "title": "Minor cut on the hand",
+      "criticality_peak": 1,
+      "scene": {
+        "place": "Domestic kitchen, mid-afternoon",
+        "bed": "kitchen_domestic",
+        "snr_db": 25,
+        "snr_db_end": null
+      },
+      "voice": {
+        "semitones": 0.0,
+        "rate": 1.0,
+        "channel": "handset_close"
+      },
+      "turns": {
+        "t01": {
+          "turn": 1,
+          "script": "Hi, yeah, sorry \u2014 I've just cut my hand on a knife doing the vegetables. It's not deep or anything, it's just bleeding a bit more than I expected.",
+          "raw": "raw/s01_kitchen_cut/t01.wav",
+          "wav": "mixed/s01_kitchen_cut/t01.wav",
+          "sha256": "8e89ef61db3d9f18",
+          "mix": {
+            "snr_db": Infinity,
+            "snr_db_end": null,
+            "channel": "handset_close",
+            "duration_s": 9.1,
+            "voice_rms": 0.235747,
+            "bed_rms": 0.0
+          },
+          "expect_markers": [],
+          "expect_no_markers": [
+            "not_breathing",
+            "unresponsive",
+            "no_pulse"
+          ],
+          "defect": null,
+          "triage": {
+            "level": 1,
+            "escalation": "not_needed"
+          },
+          "stt": {
+            "transcript": "Hi, yeah, sorry, I've just cut my hand on a knife doing the vegetables. It's not deep or anything, it's just bleeding a bit more than I expected.",
+            "confidence": 1.0,
+            "word_count": 28,
+            "mean_word_confidence": 0.9868,
+            "model": "c0244ab1-78fc-4baf-886a-2e3f17013da8",
+            "request_id": "01a0b248-f0df-72f1-9261-a4d69625cefb"
+          }
+        },
+        "t02": {
+          "turn": 2,
+          "script": "It's on the pad of my thumb. Maybe a centimetre? It's oozing, it's not squirting or anything.",
+          "raw": "raw/s01_kitchen_cut/t02.wav",
+          "wav": "mixed/s01_kitchen_cut/t02.wav",
+          "sha256": "4385be247951a4ab",
+          "mix": {
+            "snr_db": Infinity,
+            "snr_db_end": null,
+            "channel": "handset_close",
+            "duration_s": 6.86,
+            "voice_rms": 0.228812,
+            "bed_rms": 0.0
+          },
+          "expect_markers": [],
+          "expect_no_markers": [
+            "not_breathing",
+            "unresponsive"
+          ],
+          "defect": null,
+          "triage": {
+            "level": 1,
+            "escalation": "not_needed"
+          },
+          "stt": {
+            "transcript": "It's on the pad of my thumb, maybe a centimeter? It's oozing, it's not squirting or anything.",
+            "confidence": 0.9997,
+            "word_count": 17,
+            "mean_word_confidence": 0.9705,
+            "model": "c0244ab1-78fc-4baf-886a-2e3f17013da8",
+            "request_id": "01a0b248-fa99-7723-a73d-ddcd2bace5df"
+          }
+        },
+        "t03": {
+          "turn": 3,
+          "script": "Okay, it's under the tap now. It's stopped, actually. It's fine.",
+          "raw": "raw/s01_kitchen_cut/t03.wav",
+          "wav": "mixed/s01_kitchen_cut/t03.wav",
+          "sha256": "ed0362245535d5f2",
+          "mix": {
+            "snr_db": Infinity,
+            "snr_db_end": null,
+            "channel": "handset_close",
+            "duration_s": 5.9,
+            "voice_rms": 0.242706,
+            "bed_rms": 0.0
+          },
+          "expect_markers": [],
+          "expect_no_markers": [
+            "not_breathing",
+            "unresponsive"
+          ],
+          "defect": null,
+          "triage": {
+            "level": 1,
+            "escalation": "not_needed"
+          },
+          "stt": {
+            "transcript": "Okay. It's under the tab now. It's stopped, actually. It's fine.",
+            "confidence": 0.9995,
+            "word_count": 11,
+            "mean_word_confidence": 0.9705,
+            "model": "c0244ab1-78fc-4baf-886a-2e3f17013da8",
+            "request_id": "01a0b249-037e-7fc0-8230-c97495794d4b"
+          }
+        }
+      }
+    },
+    "s02_playground_wrist": {
+      "title": "Suspected wrist fracture, child",
+      "criticality_peak": 2,
+      "scene": {
+        "place": "Public playground, windy afternoon",
+        "bed": "playground_wind",
+        "snr_db": 18,
+        "snr_db_end": null
+      },
+      "voice": {
+        "semitones": 0.0,
+        "rate": 1.05,
+        "channel": "handset_outdoor"
+      },
+      "turns": {
+        "t01": {
+          "turn": 1,
+          "script": "My daughter came off the climbing frame, she landed on her arm and she's screaming. She's holding her wrist, she won't let me touch it.",
+          "raw": "raw/s02_playground_wrist/t01.wav",
+          "wav": "mixed/s02_playground_wrist/t01.wav",
+          "sha256": "5fa5a206c829c6c0",
+          "mix": {
+            "snr_db": Infinity,
+            "snr_db_end": null,
+            "channel": "handset_outdoor",
+            "duration_s": 8.03,
+            "voice_rms": 0.104248,
+            "bed_rms": 0.0
+          },
+          "expect_markers": [],
+          "expect_no_markers": [
+            "not_breathing",
+            "unresponsive",
+            "no_pulse"
+          ],
+          "defect": null,
+          "triage": {
+            "level": 2,
+            "escalation": "not_needed"
+          },
+          "stt": {
+            "transcript": "My daughter came off the crane. She landed on her arm, and she's screaming. She's holding her wrist. She won't let me touch it.",
+            "confidence": 0.9971,
+            "word_count": 24,
+            "mean_word_confidence": 0.9355,
+            "model": "c0244ab1-78fc-4baf-886a-2e3f17013da8",
+            "request_id": "01a0b249-0b0d-7303-903a-72495226d83d"
+          }
+        },
+        "t02": {
+          "turn": 2,
+          "script": "She's seven. She's crying really hard but she's talking to me. It looks \u2014 I don't know, it looks a bit bent? Just below the hand.",
+          "raw": "raw/s02_playground_wrist/t02.wav",
+          "wav": "mixed/s02_playground_wrist/t02.wav",
+          "sha256": "d5682effaf90890a",
+          "mix": {
+            "snr_db": Infinity,
+            "snr_db_end": null,
+            "channel": "handset_outdoor",
+            "duration_s": 10.55,
+            "voice_rms": 0.087829,
+            "bed_rms": 0.0
+          },
+          "expect_markers": [],
+          "expect_no_markers": [
+            "not_breathing",
+            "unresponsive"
+          ],
+          "defect": null,
+          "triage": {
+            "level": 2,
+            "escalation": "not_needed"
+          },
+          "stt": {
+            "transcript": "She's 7. She's crying really hard as she's talking to me. It looks I don't know. It looks an event just below the hand.",
+            "confidence": 0.9932,
+            "word_count": 24,
+            "mean_word_confidence": 0.9072,
+            "model": "c0244ab1-78fc-4baf-886a-2e3f17013da8",
+            "request_id": "01a0b249-130a-79c3-bf39-367aaf4da82d"
+          }
+        },
+        "t03": {
+          "turn": 3,
+          "script": "No, no, her fingers are fine, they're warm, she can wiggle them. She's just \u2014 she won't stop crying.",
+          "raw": "raw/s02_playground_wrist/t03.wav",
+          "wav": "mixed/s02_playground_wrist/t03.wav",
+          "sha256": "44d5afbe98b51c18",
+          "mix": {
+            "snr_db": Infinity,
+            "snr_db_end": null,
+            "channel": "handset_outdoor",
+            "duration_s": 7.35,
+            "voice_rms": 0.106093,
+            "bed_rms": 0.0
+          },
+          "expect_markers": [],
+          "expect_no_markers": [
+            "not_breathing",
+            "unresponsive"
+          ],
+          "defect": null,
+          "triage": {
+            "level": 2,
+            "escalation": "not_needed"
+          },
+          "stt": {
+            "transcript": "No, no, her fingers are fine. They're warm. She's with them. She just she won't stop crying",
+            "confidence": 0.9524,
+            "word_count": 17,
+            "mean_word_confidence": 0.8356,
+            "model": "c0244ab1-78fc-4baf-886a-2e3f17013da8",
+            "request_id": "01a0b249-1cc8-7dd3-9254-3d660b49e63e"
+          }
+        }
+      }
+    },
+    "s03_office_seizure": {
+      "title": "Seizure that has now stopped",
+      "criticality_peak": 3,
+      "scene": {
+        "place": "Open-plan office",
+        "bed": "office_openplan",
+        "snr_db": 22,
+        "snr_db_end": null
+      },
+      "voice": {
+        "semitones": 0.0,
+        "rate": 1.0,
+        "channel": "handset_close"
+      },
+      "turns": {
+        "t01": {
+          "turn": 1,
+          "script": "One of my colleagues just had a seizure at his desk. He's on the floor. The shaking's stopped now but he's not responding to me.",
+          "raw": "raw/s03_office_seizure/t01.wav",
+          "wav": "mixed/s03_office_seizure/t01.wav",
+          "sha256": "1d05503ab1265803",
+          "mix": {
+            "snr_db": Infinity,
+            "snr_db_end": null,
+            "channel": "handset_close",
+            "duration_s": 8.3,
+            "voice_rms": 0.070226,
+            "bed_rms": 0.0
+          },
+          "expect_markers": [
+            "unresponsive"
+          ],
+          "expect_no_markers": [
+            "not_breathing",
+            "no_pulse"
+          ],
+          "defect": null,
+          "triage": {
+            "level": 5,
+            "escalation": "requested",
+            "note": "The unresponsive marker forces Level 5 via the hard-escalation path in agent.record_finding. This is correct and deliberate: phrases.py cannot know the casualty is breathing until the agent asks. The next turn establishes normal breathing, and the ratchet correctly REFUSES to downgrade.\n"
+          },
+          "stt": {
+            "transcript": "1 of my colleagues just had a seizure at his desk. He's on the floor. The shaking stopped now, but he's not responding to me.",
+            "confidence": 1.0,
+            "word_count": 25,
+            "mean_word_confidence": 0.9836,
+            "model": "c0244ab1-78fc-4baf-886a-2e3f17013da8",
+            "request_id": "01a0b249-25b5-7051-8d17-95670d59190b"
+          }
+        },
+        "t02": {
+          "turn": 2,
+          "script": "He is breathing, yeah. Properly, like \u2014 normal breaths, I can see his chest going. He's just out of it.",
+          "raw": "raw/s03_office_seizure/t02.wav",
+          "wav": "mixed/s03_office_seizure/t02.wav",
+          "sha256": "dee35f601237858c",
+          "mix": {
+            "snr_db": Infinity,
+            "snr_db_end": null,
+            "channel": "handset_close",
+            "duration_s": 7.74,
+            "voice_rms": 0.104736,
+            "bed_rms": 0.0
+          },
+          "expect_markers": [],
+          "expect_no_markers": [
+            "not_breathing",
+            "inadequate_breathing"
+          ],
+          "defect": null,
+          "triage": {
+            "level": 5,
+            "escalation": "requested",
+            "downgrade_refused": true,
+            "note": "Even though this turn is reassuring, criticality MUST NOT drop. set_level refuses the downgrade and returns rejected=True. This is the ratchet property that survived a self-review bug.\n"
+          },
+          "stt": {
+            "transcript": "He is breathing, yeah, properly, like normal breaths. I can see his chest going, he's just out of it",
+            "confidence": 0.9961,
+            "word_count": 19,
+            "mean_word_confidence": 0.9432,
+            "model": "c0244ab1-78fc-4baf-886a-2e3f17013da8",
+            "request_id": "01a0b249-30f2-7d20-9ded-801b0bb4013e"
+          }
+        },
+        "t03": {
+          "turn": 3,
+          "script": "It lasted about a minute I think? Maybe less. He's diabetic, I know that much. He's starting to mumble now.",
+          "raw": "raw/s03_office_seizure/t03.wav",
+          "wav": "mixed/s03_office_seizure/t03.wav",
+          "sha256": "d6431a5d31dd1d6e",
+          "mix": {
+            "snr_db": Infinity,
+            "snr_db_end": null,
+            "channel": "handset_close",
+            "duration_s": 10.3,
+            "voice_rms": 0.095173,
+            "bed_rms": 0.0
+          },
+          "expect_markers": [],
+          "expect_no_markers": [
+            "not_breathing",
+            "unresponsive"
+          ],
+          "defect": null,
+          "triage": {
+            "level": 5,
+            "escalation": "requested"
+          },
+          "stt": {
+            "transcript": "It lasted about a minute, I think, maybe less. He's diabetic. I know that much. He's starting to mumble now.",
+            "confidence": 0.9995,
+            "word_count": 20,
+            "mean_word_confidence": 0.9641,
+            "model": "c0244ab1-78fc-4baf-886a-2e3f17013da8",
+            "request_id": "01a0b249-3a24-7752-a526-f17ceaaf82c4"
+          }
+        }
+      }
+    },
+    "s04_kitchen_burn": {
+      "title": "Thermal burn to the forearm",
+      "criticality_peak": 3,
+      "scene": {
+        "place": "Commercial restaurant kitchen, service",
+        "bed": "kitchen_commercial",
+        "snr_db": 15,
+        "snr_db_end": null
+      },
+      "voice": {
+        "semitones": 0.0,
+        "rate": 1.15,
+        "channel": "speakerphone"
+      },
+      "turns": {
+        "t01": {
+          "turn": 1,
+          "script": "I've burnt my arm, hot oil went over it, it's \u2014 it's really going. From my wrist up to about my elbow.",
+          "raw": "raw/s04_kitchen_burn/t01.wav",
+          "wav": "mixed/s04_kitchen_burn/t01.wav",
+          "sha256": "91e63f1d10f4c914",
+          "mix": {
+            "snr_db": Infinity,
+            "snr_db_end": null,
+            "channel": "speakerphone",
+            "duration_s": 7.92,
+            "voice_rms": 0.138254,
+            "bed_rms": 0.0
+          },
+          "expect_markers": [],
+          "expect_no_markers": [
+            "not_breathing",
+            "unresponsive",
+            "no_pulse"
+          ],
+          "defect": null,
+          "triage": {
+            "level": 3,
+            "escalation": "not_needed"
+          },
+          "stt": {
+            "transcript": "I've got my arm, hop all the way over it. It's it's me going from my wrist up to around my elbow",
+            "confidence": 0.979,
+            "word_count": 22,
+            "mean_word_confidence": 0.8207,
+            "model": "c0244ab1-78fc-4baf-886a-2e3f17013da8",
+            "request_id": "01a0b249-45f7-7342-85da-7c6c979a1c11"
+          }
+        },
+        "t02": {
+          "turn": 2,
+          "script": "Someone's saying put butter on it \u2014 should I put butter on it? Or we've got ice in the back?",
+          "raw": "raw/s04_kitchen_burn/t02.wav",
+          "wav": "mixed/s04_kitchen_burn/t02.wav",
+          "sha256": "e48e9469748ad8fa",
+          "mix": {
+            "snr_db": Infinity,
+            "snr_db_end": null,
+            "channel": "speakerphone",
+            "duration_s": 6.46,
+            "voice_rms": 0.116279,
+            "bed_rms": 0.0
+          },
+          "expect_markers": [],
+          "expect_no_markers": [
+            "not_breathing",
+            "unresponsive"
+          ],
+          "defect": null,
+          "triage": {
+            "level": 3,
+            "escalation": "not_needed",
+            "note": "The agent must refuse both. protocols.py burns-thermal is explicit: \"Do not use ice, butter, or ointment.\"\n"
+          },
+          "stt": {
+            "transcript": "Someone's saying put butter on it. Should I put butter on it? Or we've got ice in the back",
+            "confidence": 0.979,
+            "word_count": 19,
+            "mean_word_confidence": 0.8932,
+            "model": "c0244ab1-78fc-4baf-886a-2e3f17013da8",
+            "request_id": "01a0b249-4f5f-7a53-9e58-cf5336790ef7"
+          }
+        },
+        "t03": {
+          "turn": 3,
+          "script": "It's under the cold tap. How long do I stand here for? It's gone all red and there's a blister coming up near my wrist.",
+          "raw": "raw/s04_kitchen_burn/t03.wav",
+          "wav": "mixed/s04_kitchen_burn/t03.wav",
+          "sha256": "c9bd127cbd9ed491",
+          "mix": {
+            "snr_db": Infinity,
+            "snr_db_end": null,
+            "channel": "speakerphone",
+            "duration_s": 9.66,
+            "voice_rms": 0.11437,
+            "bed_rms": 0.0
+          },
+          "expect_markers": [],
+          "expect_no_markers": [
+            "not_breathing",
+            "unresponsive"
+          ],
+          "defect": null,
+          "triage": {
+            "level": 3,
+            "escalation": "not_needed"
+          },
+          "stt": {
+            "transcript": "It's under the little tab. How long do I stand here for? It's gone all red, and there's a blister coming up near my wrist.",
+            "confidence": 0.9932,
+            "word_count": 25,
+            "mean_word_confidence": 0.9102,
+            "model": "c0244ab1-78fc-4baf-886a-2e3f17013da8",
+            "request_id": "01a0b249-581a-7b21-82bf-4889c8a64601"
+          }
+        }
+      }
+    },
+    "s05_roadside_bleed": {
+      "title": "Uncontrolled thigh haemorrhage",
+      "criticality_peak": 4,
+      "scene": {
+        "place": "Unlit A-road, night, raining",
+        "bed": "roadside_rain_night",
+        "snr_db": 10,
+        "snr_db_end": null
+      },
+      "voice": {
+        "semitones": 0.0,
+        "rate": 1.2,
+        "channel": "speakerphone_wet"
+      },
+      "turns": {
+        "t01": {
+          "turn": 1,
+          "script": "There's a motorbike gone off the road, the rider's down, his leg's \u2014 there's blood everywhere, it's pumping out of his thigh. It's properly pumping.",
+          "raw": "raw/s05_roadside_bleed/t01.wav",
+          "wav": "mixed/s05_roadside_bleed/t01.wav",
+          "sha256": "2587c403951c877d",
+          "mix": {
+            "snr_db": Infinity,
+            "snr_db_end": null,
+            "channel": "speakerphone_wet",
+            "duration_s": 10.17,
+            "voice_rms": 0.085562,
+            "bed_rms": 0.0
+          },
+          "expect_markers": [],
+          "expect_no_markers": [
+            "not_breathing",
+            "unresponsive",
+            "no_pulse"
+          ],
+          "defect": null,
+          "triage": {
+            "level": 4,
+            "escalation": "requested",
+            "note": "Level 4 meets the default ESCALATION_THRESHOLD, so should_escalate() is true and a clinician is requested on this turn \u2014 with no marker having fired.\n"
+          },
+          "stt": {
+            "transcript": "There's a little bit a rope, right down. His legs, there's nothing there. It's popping out of his eye. It's probably popping",
+            "confidence": 0.6919,
+            "word_count": 22,
+            "mean_word_confidence": 0.6569,
+            "model": "c0244ab1-78fc-4baf-886a-2e3f17013da8",
+            "request_id": "01a0b249-5fb5-7282-9bbd-80afb7dc3b4a"
+          }
+        },
+        "t02": {
+          "turn": 2,
+          "script": "He's talking, he's awake, he keeps asking about his bike. But the blood's not stopping, I've got my hands on it and it's coming through my fingers.",
+          "raw": "raw/s05_roadside_bleed/t02.wav",
+          "wav": "mixed/s05_roadside_bleed/t02.wav",
+          "sha256": "2f721e5f5a81780a",
+          "mix": {
+            "snr_db": Infinity,
+            "snr_db_end": null,
+            "channel": "speakerphone_wet",
+            "duration_s": 8.77,
+            "voice_rms": 0.117048,
+            "bed_rms": 0.0
+          },
+          "expect_markers": [],
+          "expect_no_markers": [
+            "not_breathing",
+            "unresponsive",
+            "no_pulse"
+          ],
+          "defect": null,
+          "triage": {
+            "level": 4,
+            "escalation": "requested"
+          },
+          "stt": {
+            "transcript": "He's walking, he's awake, he's laughing about a spike, but the mouth's not stopping. I've got a hand load and it's coming through my fingers",
+            "confidence": 0.7664,
+            "word_count": 25,
+            "mean_word_confidence": 0.7753,
+            "model": "c0244ab1-78fc-4baf-886a-2e3f17013da8",
+            "request_id": "01a0b249-68d5-77d3-892b-3148722295f0"
+          }
+        },
+        "t03": {
+          "turn": 3,
+          "script": "Someone's got a first aid kit from their car, there's a tourniquet thing in it. Where do I put it? How high up?",
+          "raw": "raw/s05_roadside_bleed/t03.wav",
+          "wav": "mixed/s05_roadside_bleed/t03.wav",
+          "sha256": "ad1bc9e338dfdecb",
+          "mix": {
+            "snr_db": Infinity,
+            "snr_db_end": null,
+            "channel": "speakerphone_wet",
+            "duration_s": 6.5,
+            "voice_rms": 0.109144,
+            "bed_rms": 0.0
+          },
+          "expect_markers": [],
+          "expect_no_markers": [
+            "not_breathing",
+            "unresponsive"
+          ],
+          "defect": null,
+          "triage": {
+            "level": 4,
+            "escalation": "requested"
+          },
+          "stt": {
+            "transcript": "",
+            "confidence": 0.0,
+            "word_count": 0,
+            "mean_word_confidence": null,
+            "model": "c0244ab1-78fc-4baf-886a-2e3f17013da8",
+            "request_id": "01a0b249-7306-75f3-8402-bd6f90d82d92"
+          }
+        },
+        "t04": {
+          "turn": 4,
+          "script": "Okay it's on, it's tight, I've wound it right up. The bleeding's stopped. He's screaming at me that it hurts.",
+          "raw": "raw/s05_roadside_bleed/t04.wav",
+          "wav": "mixed/s05_roadside_bleed/t04.wav",
+          "sha256": "6044f5c6d383c87e",
+          "mix": {
+            "snr_db": Infinity,
+            "snr_db_end": null,
+            "channel": "speakerphone_wet",
+            "duration_s": 7.5,
+            "voice_rms": 0.104211,
+            "bed_rms": 0.0
+          },
+          "expect_markers": [],
+          "expect_no_markers": [
+            "not_breathing",
+            "unresponsive"
+          ],
+          "defect": null,
+          "triage": {
+            "level": 4,
+            "escalation": "requested",
+            "downgrade_refused": true,
+            "note": "Bleeding controlled does not lower criticality. The ratchet holds.\n"
+          },
+          "stt": {
+            "transcript": "Okay, mom. It's tight. I've rounded right up. A bleeding shot. It's screaming at me that hurts.",
+            "confidence": 0.8113,
+            "word_count": 17,
+            "mean_word_confidence": 0.6952,
+            "model": "c0244ab1-78fc-4baf-886a-2e3f17013da8",
+            "request_id": "01a0b249-7ad4-7710-a2da-3379df207ad1"
+          }
+        }
+      }
+    },
+    "s06_livingroom_stroke": {
+      "title": "Suspected stroke, FAST positive",
+      "criticality_peak": 4,
+      "scene": {
+        "place": "Living room, television on",
+        "bed": "livingroom_tv",
+        "snr_db": 20,
+        "snr_db_end": null
+      },
+      "voice": {
+        "semitones": 0.0,
+        "rate": 0.95,
+        "channel": "handset_close"
+      },
+      "turns": {
+        "t01": {
+          "turn": 1,
+          "script": "Something's wrong with my husband. His face has gone funny on one side and he's talking but it's all \u2014 it's coming out wrong, I can't understand him.",
+          "raw": "raw/s06_livingroom_stroke/t01.wav",
+          "wav": "mixed/s06_livingroom_stroke/t01.wav",
+          "sha256": "3ccfd55004acc2e8",
+          "mix": {
+            "snr_db": Infinity,
+            "snr_db_end": null,
+            "channel": "handset_close",
+            "duration_s": 13.56,
+            "voice_rms": 0.107924,
+            "bed_rms": 0.0
+          },
+          "expect_markers": [],
+          "expect_no_markers": [
+            "not_breathing",
+            "unresponsive",
+            "no_pulse"
+          ],
+          "defect": null,
+          "triage": {
+            "level": 4,
+            "escalation": "requested"
+          },
+          "stt": {
+            "transcript": "Something's wrong with my husband. His face has gone fully on 1 side, and he's talking, but it's all it could have wrong. I can't understand him.",
+            "confidence": 0.9902,
+            "word_count": 27,
+            "mean_word_confidence": 0.8897,
+            "model": "c0244ab1-78fc-4baf-886a-2e3f17013da8",
+            "request_id": "01a0b249-8451-79c1-a7bf-9fc8a5478024"
+          }
+        },
+        "t02": {
+          "turn": 2,
+          "script": "His right arm just \u2014 it drops when he lifts it. The left one's fine. The right one won't stay up.",
+          "raw": "raw/s06_livingroom_stroke/t02.wav",
+          "wav": "mixed/s06_livingroom_stroke/t02.wav",
+          "sha256": "b21d05ce13f159cd",
+          "mix": {
+            "snr_db": Infinity,
+            "snr_db_end": null,
+            "channel": "handset_close",
+            "duration_s": 9.02,
+            "voice_rms": 0.11082,
+            "bed_rms": 0.0
+          },
+          "expect_markers": [],
+          "expect_no_markers": [
+            "not_breathing",
+            "unresponsive"
+          ],
+          "defect": null,
+          "triage": {
+            "level": 4,
+            "escalation": "requested"
+          },
+          "stt": {
+            "transcript": "His right arm just it drops when you lift it. The left one's fine. The right 1 won't stay up.",
+            "confidence": 0.9902,
+            "word_count": 20,
+            "mean_word_confidence": 0.9571,
+            "model": "c0244ab1-78fc-4baf-886a-2e3f17013da8",
+            "request_id": "01a0b249-8d46-74d3-8405-49f3b91913d9"
+          }
+        },
+        "t03": {
+          "turn": 3,
+          "script": "He was fine at breakfast. About eight o'clock, we had toast, he was completely normal. It's \u2014 what is it now, half nine?",
+          "raw": "raw/s06_livingroom_stroke/t03.wav",
+          "wav": "mixed/s06_livingroom_stroke/t03.wav",
+          "sha256": "cb5dc422eee9b569",
+          "mix": {
+            "snr_db": Infinity,
+            "snr_db_end": null,
+            "channel": "handset_close",
+            "duration_s": 11.79,
+            "voice_rms": 0.121208,
+            "bed_rms": 0.0
+          },
+          "expect_markers": [],
+          "expect_no_markers": [
+            "not_breathing",
+            "unresponsive"
+          ],
+          "defect": null,
+          "triage": {
+            "level": 4,
+            "escalation": "requested"
+          },
+          "stt": {
+            "transcript": "He was fine at breakfast. About 08:00, we had toast. He was completely normal. It's... What is it now? 0.5 9?",
+            "confidence": 0.9951,
+            "word_count": 21,
+            "mean_word_confidence": 0.9647,
+            "model": "c0244ab1-78fc-4baf-886a-2e3f17013da8",
+            "request_id": "01a0b249-977a-7ed1-9ac4-e75abf862fb1"
+          }
+        },
+        "t04": {
+          "turn": 4,
+          "script": "Should I give him a cup of tea? He keeps trying to get up.",
+          "raw": "raw/s06_livingroom_stroke/t04.wav",
+          "wav": "mixed/s06_livingroom_stroke/t04.wav",
+          "sha256": "497641f998e20fa1",
+          "mix": {
+            "snr_db": Infinity,
+            "snr_db_end": null,
+            "channel": "handset_close",
+            "duration_s": 4.97,
+            "voice_rms": 0.125399,
+            "bed_rms": 0.0
+          },
+          "expect_markers": [],
+          "expect_no_markers": [
+            "not_breathing",
+            "unresponsive"
+          ],
+          "defect": null,
+          "triage": {
+            "level": 4,
+            "escalation": "requested",
+            "note": "stroke-fast is explicit: nothing to eat or drink. The agent must refuse the tea.\n"
+          },
+          "stt": {
+            "transcript": "Should I get him a cup of tea? He keeps trying to get up",
+            "confidence": 0.9302,
+            "word_count": 14,
+            "mean_word_confidence": 0.7966,
+            "model": "c0244ab1-78fc-4baf-886a-2e3f17013da8",
+            "request_id": "01a0b249-a336-74b1-b0c1-1825e730aa65"
+          }
+        }
+      }
+    },
+    "s07_garden_anaphylaxis": {
+      "title": "Anaphylaxis after a wasp sting",
+      "criticality_peak": 5,
+      "scene": {
+        "place": "Garden party, summer",
+        "bed": "crowd_garden_party",
+        "snr_db": 14,
+        "snr_db_end": null
+      },
+      "voice": {
+        "semitones": 0.0,
+        "rate": 1.25,
+        "channel": "handset_outdoor"
+      },
+      "turns": {
+        "t01": {
+          "turn": 1,
+          "script": "My friend's been stung and she's come out in a rash all over and her face is swelling up \u2014 her lips are huge, she sounds really wheezy.",
+          "raw": "raw/s07_garden_anaphylaxis/t01.wav",
+          "wav": "mixed/s07_garden_anaphylaxis/t01.wav",
+          "sha256": "8af6186e1ef809be",
+          "mix": {
+            "snr_db": Infinity,
+            "snr_db_end": null,
+            "channel": "handset_outdoor",
+            "duration_s": 7.18,
+            "voice_rms": 0.084237,
+            "bed_rms": 0.0
+          },
+          "expect_markers": [],
+          "expect_no_markers": [
+            "not_breathing",
+            "unresponsive",
+            "cyanosis"
+          ],
+          "defect": null,
+          "triage": {
+            "level": 5,
+            "escalation": "requested"
+          },
+          "stt": {
+            "transcript": "My friend is dying and she's come out and ran all over and her face is going up. Her lips are huge, she sounds really needy",
+            "confidence": 0.9517,
+            "word_count": 26,
+            "mean_word_confidence": 0.8296,
+            "model": "c0244ab1-78fc-4baf-886a-2e3f17013da8",
+            "request_id": "01a0b249-abc3-74c1-9a66-cd0ea9a38f9c"
+          }
+        },
+        "t02": {
+          "turn": 2,
+          "script": "She's got one of those pens, an EpiPen, it's in her bag \u2014 I've got it. Where do I \u2014 is it the leg? Through her jeans?",
+          "raw": "raw/s07_garden_anaphylaxis/t02.wav",
+          "wav": "mixed/s07_garden_anaphylaxis/t02.wav",
+          "sha256": "77d7d1626a91c18e",
+          "mix": {
+            "snr_db": Infinity,
+            "snr_db_end": null,
+            "channel": "handset_outdoor",
+            "duration_s": 7.95,
+            "voice_rms": 0.106078,
+            "bed_rms": 0.0
+          },
+          "expect_markers": [],
+          "expect_no_markers": [
+            "not_breathing",
+            "unresponsive"
+          ],
+          "defect": null,
+          "triage": {
+            "level": 5,
+            "escalation": "requested"
+          },
+          "stt": {
+            "transcript": "She got 1 of the pens, an epinephrine, in her bag. I got it. Where do I, you know, like, give her jeans?",
+            "confidence": 0.9595,
+            "word_count": 23,
+            "mean_word_confidence": 0.8575,
+            "model": "c0244ab1-78fc-4baf-886a-2e3f17013da8",
+            "request_id": "01a0b249-bb61-76b1-b78b-4651024ef9a9"
+          }
+        },
+        "t03": {
+          "turn": 3,
+          "script": "Done it. It's in, I held it. She's \u2014 I don't know, she's still really struggling to breathe, it sounds awful.",
+          "raw": "raw/s07_garden_anaphylaxis/t03.wav",
+          "wav": "mixed/s07_garden_anaphylaxis/t03.wav",
+          "sha256": "b6d7a4890adb17d0",
+          "mix": {
+            "snr_db": Infinity,
+            "snr_db_end": null,
+            "channel": "handset_outdoor",
+            "duration_s": 6.86,
+            "voice_rms": 0.099794,
+            "bed_rms": 0.0
+          },
+          "expect_markers": [],
+          "expect_no_markers": [
+            "not_breathing",
+            "cannot_breathe",
+            "unresponsive"
+          ],
+          "defect": null,
+          "triage": {
+            "level": 5,
+            "escalation": "requested"
+          },
+          "stt": {
+            "transcript": "But it is. I know that she's... I don't know. She's still really struggling to breathe. It sounds awful.",
+            "confidence": 0.9395,
+            "word_count": 19,
+            "mean_word_confidence": 0.8411,
+            "model": "c0244ab1-78fc-4baf-886a-2e3f17013da8",
+            "request_id": "01a0b249-ece7-7410-8509-8b8b2e867fcb"
+          }
+        },
+        "t04": {
+          "turn": 4,
+          "script": "How long's it been since I gave it to her? She's not getting any better. There's a second pen in the bag.",
+          "raw": "raw/s07_garden_anaphylaxis/t04.wav",
+          "wav": "mixed/s07_garden_anaphylaxis/t04.wav",
+          "sha256": "5d16454bdb9c20eb",
+          "mix": {
+            "snr_db": Infinity,
+            "snr_db_end": null,
+            "channel": "handset_outdoor",
+            "duration_s": 6.28,
+            "voice_rms": 0.098453,
+            "bed_rms": 0.0
+          },
+          "expect_markers": [],
+          "expect_no_markers": [
+            "not_breathing",
+            "unresponsive"
+          ],
+          "defect": null,
+          "triage": {
+            "level": 5,
+            "escalation": "requested",
+            "note": "The agent must answer from recall_state, not ask the responder. anaphylaxis protocol: second dose at 5 minutes if no improvement.\n"
+          },
+          "stt": {
+            "transcript": "How long has been that I needed to her? She's not getting any better. There's a 2nd antibiotic",
+            "confidence": 0.981,
+            "word_count": 18,
+            "mean_word_confidence": 0.8578,
+            "model": "c0244ab1-78fc-4baf-886a-2e3f17013da8",
+            "request_id": "01a0b249-f54a-74f0-a1d8-705e46347b97"
+          }
+        }
+      }
+    },
+    "s08_site_arrest": {
+      "title": "Collapse and cardiac arrest on a building site",
+      "criticality_peak": 5,
+      "scene": {
+        "place": "Active construction site",
+        "bed": "construction_site",
+        "snr_db": 8,
+        "snr_db_end": null
+      },
+      "voice": {
+        "semitones": 0.0,
+        "rate": 1.3,
+        "channel": "speakerphone"
+      },
+      "turns": {
+        "t01": {
+          "turn": 1,
+          "script": "He's just gone down, he's on the deck and he's not moving \u2014 he's not breathing, I don't think he's breathing at all.",
+          "raw": "raw/s08_site_arrest/t01.wav",
+          "wav": "mixed/s08_site_arrest/t01.wav",
+          "sha256": "3baa764aed7ba79e",
+          "mix": {
+            "snr_db": Infinity,
+            "snr_db_end": null,
+            "channel": "speakerphone",
+            "duration_s": 5.53,
+            "voice_rms": 0.138277,
+            "bed_rms": 0.0
+          },
+          "expect_markers": [
+            "not_breathing",
+            "unresponsive"
+          ],
+          "expect_no_markers": [],
+          "defect": null,
+          "triage": {
+            "level": 5,
+            "escalation": "requested",
+            "note": "Both markers fire. Hard escalation forces CRITICAL on this turn without waiting for the model. This is the system's most defensible safety property.\n"
+          },
+          "stt": {
+            "transcript": "He could have gone down. He's on the deck. He's not moving. He's not breathing. I don't think he's breathing at all.",
+            "confidence": 0.9871,
+            "word_count": 22,
+            "mean_word_confidence": 0.9251,
+            "model": "c0244ab1-78fc-4baf-886a-2e3f17013da8",
+            "request_id": "01a0b24a-0577-7a00-a6e8-0160bb00b96f"
+          }
+        },
+        "t02": {
+          "turn": 2,
+          "script": "No. Nothing. I've got my hand on his chest, there's nothing. He's grey, he's gone grey.",
+          "raw": "raw/s08_site_arrest/t02.wav",
+          "wav": "mixed/s08_site_arrest/t02.wav",
+          "sha256": "7190cb4616f9edc8",
+          "mix": {
+            "snr_db": Infinity,
+            "snr_db_end": null,
+            "channel": "speakerphone",
+            "duration_s": 4.79,
+            "voice_rms": 0.1418,
+            "bed_rms": 0.0
+          },
+          "expect_markers": [],
+          "expect_no_markers": [],
+          "defect": null,
+          "triage": {
+            "level": 5,
+            "escalation": "requested"
+          },
+          "stt": {
+            "transcript": "No. Nothing. I I handle it yet. There's nothing. He's great. He's doing great.",
+            "confidence": 0.8247,
+            "word_count": 14,
+            "mean_word_confidence": 0.8165,
+            "model": "c0244ab1-78fc-4baf-886a-2e3f17013da8",
+            "request_id": "01a0b24a-bc06-7942-8911-344bf9d6e805"
+          }
+        },
+        "t03": {
+          "turn": 3,
+          "script": "I'm doing it, I'm pushing \u2014 how hard? Am I doing it hard enough? I can feel something cracking.",
+          "raw": "raw/s08_site_arrest/t03.wav",
+          "wav": "mixed/s08_site_arrest/t03.wav",
+          "sha256": "f42248d1eb34d8b7",
+          "mix": {
+            "snr_db": Infinity,
+            "snr_db_end": null,
+            "channel": "speakerphone",
+            "duration_s": 6.08,
+            "voice_rms": 0.153163,
+            "bed_rms": 0.0
+          },
+          "expect_markers": [],
+          "expect_no_markers": [],
+          "defect": null,
+          "triage": {
+            "level": 5,
+            "escalation": "requested",
+            "note": "The agent must NOT tell them to stop. protocols: at least 5cm, 100-120/min. Cracking is expected and must be normalised without breaking rhythm.\n"
+          },
+          "stt": {
+            "transcript": "I'm not it! I'm working! How hard? Can I know you hard enough? How do you feel about it cracking?",
+            "confidence": 0.8677,
+            "word_count": 20,
+            "mean_word_confidence": 0.7678,
+            "model": "c0244ab1-78fc-4baf-886a-2e3f17013da8",
+            "request_id": "01a0b24a-c8d9-7d33-9a0e-bb455e70bab5"
+          }
+        },
+        "t04": {
+          "turn": 4,
+          "script": "Someone's bringing the defib from the site office. Do I stop? Do I stop pushing to put it on?",
+          "raw": "raw/s08_site_arrest/t04.wav",
+          "wav": "mixed/s08_site_arrest/t04.wav",
+          "sha256": "32f35f33ae57027d",
+          "mix": {
+            "snr_db": Infinity,
+            "snr_db_end": null,
+            "channel": "speakerphone",
+            "duration_s": 5.84,
+            "voice_rms": 0.133124,
+            "bed_rms": 0.0
+          },
+          "expect_markers": [],
+          "expect_no_markers": [],
+          "defect": null,
+          "triage": {
+            "level": 5,
+            "escalation": "requested",
+            "note": "Attaching an AED is the ONE permitted interruption per the system prompt. Pads on without stopping compressions until it analyses.\n"
+          },
+          "stt": {
+            "transcript": "Do I stop? Do I stop when they went on?",
+            "confidence": 0.9731,
+            "word_count": 10,
+            "mean_word_confidence": 0.8423,
+            "model": "c0244ab1-78fc-4baf-886a-2e3f17013da8",
+            "request_id": "01a0b24a-d104-73e1-8dd9-7e66f02a872f"
+          }
+        }
+      }
+    },
+    "s09_bedroom_agonal": {
+      "title": "Agonal breathing mistaken for breathing",
+      "criticality_peak": 5,
+      "scene": {
+        "place": "Bedroom, 3am",
+        "bed": "bedroom_night",
+        "snr_db": 28,
+        "snr_db_end": null
+      },
+      "voice": {
+        "semitones": 0.0,
+        "rate": 1.1,
+        "channel": "handset_close"
+      },
+      "turns": {
+        "t01": {
+          "turn": 1,
+          "script": "Something's wrong with my husband, he's making a horrible noise, I woke up and he's \u2014 I can't wake him up.",
+          "raw": "raw/s09_bedroom_agonal/t01.wav",
+          "wav": "mixed/s09_bedroom_agonal/t01.wav",
+          "sha256": "8a867a73abf2006d",
+          "mix": {
+            "snr_db": Infinity,
+            "snr_db_end": null,
+            "channel": "handset_close",
+            "duration_s": 5.97,
+            "voice_rms": 0.184004,
+            "bed_rms": 0.0
+          },
+          "expect_markers": [
+            "unresponsive"
+          ],
+          "expect_no_markers": [
+            "not_breathing"
+          ],
+          "defect": null,
+          "triage": {
+            "level": 5,
+            "escalation": "requested",
+            "note": "F-003 FIXED. `unresponsive` now fires on \"I can't wake him up\" \u2014 the first-person phrasing a real caller uses \u2014 alongside the \"won't wake up\" form the marker already covered. Both the object and the trailing \"up\" are optional, so \"I can't wake him\" matches too. . This is the turn that now escalates the incident, on the FIRST thing the caller says, rather than turn 3. That is the whole point of the deterministic net: a witnessed arrest reaches Level 5 on the opening sentence without waiting for the model. . Previously asserted as observed: expect_markers [] at level 1.\n"
+          },
+          "stt": {
+            "transcript": "Something wrong with my husband. He made a horrible noise. I woke up and he I can't wake him up.",
+            "confidence": 0.9873,
+            "word_count": 20,
+            "mean_word_confidence": 0.906,
+            "model": "c0244ab1-78fc-4baf-886a-2e3f17013da8",
+            "request_id": "01a0b24a-d8cd-75b1-b129-3a292f92470d"
+          }
+        },
+        "t02": {
+          "turn": 2,
+          "script": "Yes \u2014 yes he's breathing, he's making this awful gasping noise, like he's snoring but wrong. It's every few seconds.",
+          "raw": "raw/s09_bedroom_agonal/t02.wav",
+          "wav": "mixed/s09_bedroom_agonal/t02.wav",
+          "sha256": "401c78ba5382bda4",
+          "mix": {
+            "snr_db": Infinity,
+            "snr_db_end": null,
+            "channel": "handset_close",
+            "duration_s": 8.88,
+            "voice_rms": 0.159681,
+            "bed_rms": 0.0
+          },
+          "expect_markers": [
+            "inadequate_breathing"
+          ],
+          "expect_no_markers": [
+            "not_breathing"
+          ],
+          "defect": null,
+          "triage": {
+            "level": 5,
+            "escalation": "requested",
+            "note": "The responder asserts breathing. phrases.py must fire inadequate_breathing on \"gasping\" REGARDLESS, because agonal respiration is an arrest presentation. This assertion is the entire reason the marker exists.\n"
+          },
+          "stt": {
+            "transcript": "Yes, yes, he's breathing. He's making this awful gasping noise, like he's snoring, but wrong. It's every few seconds",
+            "confidence": 0.9854,
+            "word_count": 19,
+            "mean_word_confidence": 0.9317,
+            "model": "c0244ab1-78fc-4baf-886a-2e3f17013da8",
+            "request_id": "01a0b24a-e3b1-7f60-b098-836e23b63a2c"
+          }
+        },
+        "t03": {
+          "turn": 3,
+          "script": "He's not \u2014 no, he's not responding, I'm shaking him and shouting at him and there's nothing.",
+          "raw": "raw/s09_bedroom_agonal/t03.wav",
+          "wav": "mixed/s09_bedroom_agonal/t03.wav",
+          "sha256": "f54914359ab59116",
+          "mix": {
+            "snr_db": Infinity,
+            "snr_db_end": null,
+            "channel": "handset_close",
+            "duration_s": 6.41,
+            "voice_rms": 0.147041,
+            "bed_rms": 0.0
+          },
+          "expect_markers": [
+            "unresponsive"
+          ],
+          "expect_no_markers": [
+            "not_breathing"
+          ],
+          "defect": null,
+          "triage": {
+            "level": 5,
+            "escalation": "requested",
+            "note": "F-001 FIXED. \"He's not \u2014 no, he's not responding\" now fires `unresponsive`. . The self-repair \"no,\" used to land inside a flat 3-word lookback and was read as a logical negation of the finding after it. It is not: it is a discourse marker meaning \"no, in answer to your question\". The lookback is now clause-scoped \u2014 it stops at punctuation and at coordinating conjunctions \u2014 and within the clause a negator only governs the finding if it reaches it across nothing but function words. Here the \"no\" has to cross a fresh subject and verb (\"he's\"), so it does not suppress. Verified:\n    \"he's not responding\"                -> unresponsive\n    \"he's not - no, he's not responding\" -> unresponsive\n    \"no he's not breathing\"              -> not_breathing\n    \"no, no, he's not breathing\"         -> not_breathing\n. The adjacent negations this rule must still suppress do:\n    \"the casualty is not unresponsive\"   -> NONE\n    \"he's never had a cardiac arrest\"    -> NONE\n. Previously asserted as observed: expect_markers [].\n"
+          },
+          "stt": {
+            "transcript": "He's not no. He's not responding. I'm shaking him and shouting at him, there's nothing",
+            "confidence": 0.9922,
+            "word_count": 15,
+            "mean_word_confidence": 0.9398,
+            "model": "c0244ab1-78fc-4baf-886a-2e3f17013da8",
+            "request_id": "01a0b24a-f1bb-71b3-bde4-5578db7f2f6b"
+          }
+        },
+        "t04": {
+          "turn": 4,
+          "script": "On the floor? I have to get him off the bed onto the floor? He's heavy, I can't \u2014 okay. Okay. I'm doing it.",
+          "raw": "raw/s09_bedroom_agonal/t04.wav",
+          "wav": "mixed/s09_bedroom_agonal/t04.wav",
+          "sha256": "6088094b3fae3cf6",
+          "mix": {
+            "snr_db": Infinity,
+            "snr_db_end": null,
+            "channel": "handset_close",
+            "duration_s": 9.1,
+            "voice_rms": 0.153994,
+            "bed_rms": 0.0
+          },
+          "expect_markers": [],
+          "expect_no_markers": [
+            "not_breathing",
+            "unresponsive"
+          ],
+          "defect": null,
+          "triage": {
+            "level": 5,
+            "escalation": "requested"
+          },
+          "stt": {
+            "transcript": "On the floor? I have to get him off the bed onto the floor? He's heavy. I can't... Okay. Okay. I'm doing it.",
+            "confidence": 0.9961,
+            "word_count": 23,
+            "mean_word_confidence": 0.9744,
+            "model": "c0244ab1-78fc-4baf-886a-2e3f17013da8",
+            "request_id": "01a0b24a-f9db-7733-b471-b9968a8a4c7b"
+          }
+        }
+      }
+    },
+    "s10_poolside_drowning": {
+      "title": "Child pulled from a swimming pool",
+      "criticality_peak": 5,
+      "scene": {
+        "place": "Outdoor swimming pool, holiday complex",
+        "bed": "poolside_chaos",
+        "snr_db": 12,
+        "snr_db_end": null
+      },
+      "voice": {
+        "semitones": 0.0,
+        "rate": 1.35,
+        "channel": "handset_outdoor"
+      },
+      "turns": {
+        "t01": {
+          "turn": 1,
+          "script": "We've pulled a little boy out of the pool, he's not moving, he's not breathing, oh god, he's four, he's only four \u2014",
+          "raw": "raw/s10_poolside_drowning/t01.wav",
+          "wav": "mixed/s10_poolside_drowning/t01.wav",
+          "sha256": "44c1f2b8bdc322e5",
+          "mix": {
+            "snr_db": Infinity,
+            "snr_db_end": null,
+            "channel": "handset_outdoor",
+            "duration_s": 6.26,
+            "voice_rms": 0.199418,
+            "bed_rms": 0.0
+          },
+          "expect_markers": [
+            "drowning",
+            "not_breathing",
+            "unresponsive"
+          ],
+          "expect_no_markers": [],
+          "defect": null,
+          "triage": {
+            "level": 5,
+            "escalation": "requested",
+            "note": "TWO DEFECTS FIXED ON ONE TURN. All three markers now fire; before, exactly one did. . F-001 (adjacent-clause negation) FIXED: \"he's not moving, he's not breathing\" now fires BOTH `unresponsive` and `not_breathing`. The negation lookback is clause-scoped, so the \"not\" belonging to \"not moving\" no longer reaches across the comma to suppress the later finding. Reporting two life threats in one breath no longer makes the second one vanish. Verified:\n    \"he's not moving, he's not breathing\" -> [not_breathing, unresponsive]\n    \"no pulse, he's not breathing\"        -> [not_breathing, no_pulse]\n. F-004 (drowning vocabulary) FIXED: the pattern now matches a named submersion location rather than the literal word \"water\", and requires the casualty to be the OBJECT of the extraction. Verified:\n    \"pulled a little boy out of the pool\" -> [drowning]\n    \"we dragged her out of the lake\"      -> [drowning]\n    \"he got out of the pool and sat down\" -> NONE\n`drowning` firing is what signals the hypoxic-arrest sequence \u2014 five rescue breaths BEFORE compressions \u2014 which inverts adult BLS and is the whole reason a separate drowning protocol exists. . This turn is why the corpus asserts all three layers: criticality reached 5 via `unresponsive` even while two independent failures sat underneath a correct-looking level. . Previously asserted as observed: expect_markers [unresponsive].\n"
+          },
+          "stt": {
+            "transcript": "4.",
+            "confidence": 0.4612,
+            "word_count": 1,
+            "mean_word_confidence": 0.4612,
+            "model": "c0244ab1-78fc-4baf-886a-2e3f17013da8",
+            "request_id": "01a0b24b-01d5-76a3-879d-285af9d681da"
+          }
+        },
+        "t02": {
+          "turn": 2,
+          "script": "His lips are blue. He's blue round his mouth. Please tell me what to do, please \u2014",
+          "raw": "raw/s10_poolside_drowning/t02.wav",
+          "wav": "mixed/s10_poolside_drowning/t02.wav",
+          "sha256": "95e97ec33997e5ca",
+          "mix": {
+            "snr_db": Infinity,
+            "snr_db_end": null,
+            "channel": "handset_outdoor",
+            "duration_s": 4.66,
+            "voice_rms": 0.186532,
+            "bed_rms": 0.0
+          },
+          "expect_markers": [
+            "cyanosis"
+          ],
+          "expect_no_markers": [],
+          "defect": null,
+          "triage": {
+            "level": 5,
+            "escalation": "requested"
+          },
+          "stt": {
+            "transcript": "",
+            "confidence": 0.0,
+            "word_count": 0,
+            "mean_word_confidence": null,
+            "model": "c0244ab1-78fc-4baf-886a-2e3f17013da8",
+            "request_id": "01a0b24b-0a45-7352-bea6-93317ae8313c"
+          }
+        },
+        "t03": {
+          "turn": 3,
+          "script": "Breaths first? Not pushing on his chest? Okay \u2014 I'm tilting his head back. How many?",
+          "raw": "raw/s10_poolside_drowning/t03.wav",
+          "wav": "mixed/s10_poolside_drowning/t03.wav",
+          "sha256": "2db637f6f564187d",
+          "mix": {
+            "snr_db": Infinity,
+            "snr_db_end": null,
+            "channel": "handset_outdoor",
+            "duration_s": 6.02,
+            "voice_rms": 0.142872,
+            "bed_rms": 0.0
+          },
+          "expect_markers": [],
+          "expect_no_markers": [
+            "not_breathing"
+          ],
+          "defect": null,
+          "triage": {
+            "level": 5,
+            "escalation": "requested",
+            "note": "drowning-rescue: five rescue breaths BEFORE compressions, then 30:2. This inverts adult BLS and is the whole point of a separate drowning protocol.\n"
+          },
+          "stt": {
+            "transcript": "Right 1st. Not feeling it yet. Right. I'll just get back. How many?",
+            "confidence": 0.6216,
+            "word_count": 13,
+            "mean_word_confidence": 0.5896,
+            "model": "c0244ab1-78fc-4baf-886a-2e3f17013da8",
+            "request_id": "01a0b24b-127f-7092-b7ce-1e500377e09a"
+          }
+        },
+        "t04": {
+          "turn": 4,
+          "script": "He's been sick, there's water and sick coming out of his mouth, what do I do, do I stop?",
+          "raw": "raw/s10_poolside_drowning/t04.wav",
+          "wav": "mixed/s10_poolside_drowning/t04.wav",
+          "sha256": "6dd64f70a4241761",
+          "mix": {
+            "snr_db": Infinity,
+            "snr_db_end": null,
+            "channel": "handset_outdoor",
+            "duration_s": 5.72,
+            "voice_rms": 0.170123,
+            "bed_rms": 0.0
+          },
+          "expect_markers": [],
+          "expect_no_markers": [
+            "not_breathing",
+            "unresponsive"
+          ],
+          "defect": null,
+          "triage": {
+            "level": 5,
+            "escalation": "requested",
+            "note": "Expected in drowning. Turn the head, clear the mouth, continue. The agent must not let this stop resuscitation.\n"
+          },
+          "stt": {
+            "transcript": "He's been sick. There's water and sick coming out of his mouth. What do I do to myself?",
+            "confidence": 0.9258,
+            "word_count": 18,
+            "mean_word_confidence": 0.8802,
+            "model": "c0244ab1-78fc-4baf-886a-2e3f17013da8",
+            "request_id": "01a0b24b-1a88-7941-a85d-4bda23dc1f2e"
+          }
+        }
+      }
+    },
+    "s11_platform_negation": {
+      "title": "Negation \u2014 the casualty is NOT unresponsive",
+      "criticality_peak": 3,
+      "scene": {
+        "place": "Railway platform",
+        "bed": "train_platform",
+        "snr_db": 9,
+        "snr_db_end": null
+      },
+      "voice": {
+        "semitones": 0.0,
+        "rate": 1.05,
+        "channel": "handset_outdoor"
+      },
+      "turns": {
+        "t01": {
+          "turn": 1,
+          "script": "A bloke's just fainted on the platform. He went down but he's come round now \u2014 he's not unresponsive, he's talking to me.",
+          "raw": "raw/s11_platform_negation/t01.wav",
+          "wav": "mixed/s11_platform_negation/t01.wav",
+          "sha256": "de87cdefd095faa7",
+          "mix": {
+            "snr_db": Infinity,
+            "snr_db_end": null,
+            "channel": "handset_outdoor",
+            "duration_s": 8.72,
+            "voice_rms": 0.101891,
+            "bed_rms": 0.0
+          },
+          "expect_markers": [],
+          "expect_no_markers": [
+            "unresponsive",
+            "not_breathing",
+            "no_pulse"
+          ],
+          "defect": null,
+          "triage": {
+            "level": 3,
+            "escalation": "not_needed",
+            "note": "\"not unresponsive\" \u2014 the negation window suppresses the match. If unresponsive fires here, a fainting passenger triggers a clinician bridge and the system is crying wolf.\n"
+          },
+          "stt": {
+            "transcript": "A bloke just landed on the platform. He went down. He's come around now. He's not unreported. He's talking to me.",
+            "confidence": 0.9736,
+            "word_count": 21,
+            "mean_word_confidence": 0.8486,
+            "model": "c0244ab1-78fc-4baf-886a-2e3f17013da8",
+            "request_id": "01a0b24b-21be-7af0-ad18-77595623b4b7"
+          }
+        },
+        "t02": {
+          "turn": 2,
+          "script": "He wasn't breathing properly for a second there but he is breathing now, he's fine, he's sat up against the wall.",
+          "raw": "raw/s11_platform_negation/t02.wav",
+          "wav": "mixed/s11_platform_negation/t02.wav",
+          "sha256": "567f2442275d9145",
+          "mix": {
+            "snr_db": Infinity,
+            "snr_db_end": null,
+            "channel": "handset_outdoor",
+            "duration_s": 7.04,
+            "voice_rms": 0.086066,
+            "bed_rms": 0.0
+          },
+          "expect_markers": [],
+          "expect_no_markers": [
+            "not_breathing",
+            "inadequate_breathing",
+            "unresponsive"
+          ],
+          "defect": null,
+          "triage": {
+            "level": 3,
+            "escalation": "not_needed",
+            "note": "F-002 FIXED. \"wasn't breathing ... but he is breathing now\" is a recovery narrative and is now suppressed, as the module's own docstring always said it should be. . The guard required a bare `was|were|had` token BEFORE the match. Here the past tense is fused into \"wasn't\", and \"wasn't breathing\" is itself the matched text, so there was nothing past-tense in front of the match at all. The tense is now read from the start of the match as well as from the word before it, and the contracted auxiliaries are in the same set as the bare ones. . This is the ONE fix in this set that narrows firing, so it is deliberately the tightest: suppression still requires BOTH the past tense AND an explicit later contradiction. \"He wasn't breathing, I've started CPR\" \u2014 past tense, no contradiction \u2014 still fires. . Previously asserted as observed: expect_markers [not_breathing] at level 5, which bridged a clinician to a recovered faint.\n"
+          },
+          "stt": {
+            "transcript": "Ah, he wasn't breathing properly for a 2nd there, but he is breathing now. He's fine. He's out against the wall",
+            "confidence": 0.9917,
+            "word_count": 21,
+            "mean_word_confidence": 0.8995,
+            "model": "c0244ab1-78fc-4baf-886a-2e3f17013da8",
+            "request_id": "01a0b24b-2adc-7dc1-bcd1-7971a29b1e0c"
+          }
+        },
+        "t03": {
+          "turn": 3,
+          "script": "No he's never had a cardiac arrest or anything like that, he says he just skipped breakfast.",
+          "raw": "raw/s11_platform_negation/t03.wav",
+          "wav": "mixed/s11_platform_negation/t03.wav",
+          "sha256": "cc500c8b91764171",
+          "mix": {
+            "snr_db": Infinity,
+            "snr_db_end": null,
+            "channel": "handset_outdoor",
+            "duration_s": 5.9,
+            "voice_rms": 0.08797,
+            "bed_rms": 0.0
+          },
+          "expect_markers": [],
+          "expect_no_markers": [
+            "cardiac_arrest",
+            "not_breathing",
+            "unresponsive"
+          ],
+          "defect": null,
+          "triage": {
+            "level": 3,
+            "escalation": "not_needed",
+            "note": "The marker assertion here is the real subject: \"never had a cardiac arrest\" is negated, so `cardiac_arrest` correctly stays silent. A history question must not escalate a live incident. That suppression survived the F-001 rewrite because the negator reaches the finding across nothing but an auxiliary and a determiner (\"never had a\"), which is what \"the negator governs the finding\" means \u2014 unlike the discourse \"no\" of \"no, he's not breathing\". . Criticality is now 3, which is what this recovered faint clinically warrants. It was 5 as a CONSEQUENCE OF DEFECT F-002 on turn 2 \u2014 the contracted-past-tense miss escalated the incident and the ratchet correctly refused to bring it back down. . That is still the clearest illustration of why the ratchet and the marker logic must be tested together: one bad escalation was permanent for the rest of the incident.\n"
+          },
+          "stt": {
+            "transcript": "No. He's never had a cardiac arrest or anything like that. He just he gives breakfast.",
+            "confidence": 0.9941,
+            "word_count": 16,
+            "mean_word_confidence": 0.8733,
+            "model": "c0244ab1-78fc-4baf-886a-2e3f17013da8",
+            "request_id": "01a0b24b-3486-7082-82e3-523b53968c46"
+          }
+        },
+        "t04": {
+          "turn": 4,
+          "script": "He's a bit pale and clammy still. Should he be sat up or lying down?",
+          "raw": "raw/s11_platform_negation/t04.wav",
+          "wav": "mixed/s11_platform_negation/t04.wav",
+          "sha256": "f7b9a10e32511490",
+          "mix": {
+            "snr_db": Infinity,
+            "snr_db_end": null,
+            "channel": "handset_outdoor",
+            "duration_s": 5.6,
+            "voice_rms": 0.083461,
+            "bed_rms": 0.0
+          },
+          "expect_markers": [],
+          "expect_no_markers": [
+            "not_breathing",
+            "unresponsive"
+          ],
+          "defect": null,
+          "triage": {
+            "level": 3,
+            "escalation": "not_needed",
+            "note": "An ordinary recovering faint, assessed as one. This turn used to sit at 5 with a clinician bridged, pinned there by F-002 on turn 2. The scenario now holds Level 3 throughout, which is the whole point of asserting suppression: a net that escalates every recovered faint gets ignored when a real arrest arrives.\n"
+          },
+          "stt": {
+            "transcript": "Should he stand up or lie down?",
+            "confidence": 0.9536,
+            "word_count": 7,
+            "mean_word_confidence": 0.7516,
+            "model": "c0244ab1-78fc-4baf-886a-2e3f17013da8",
+            "request_id": "01a0b24b-3e34-7e32-be1e-266ada7e46ac"
+          }
+        }
+      }
+    },
+    "s12_trail_deterioration": {
+      "title": "Deterioration \u2014 minor injury to cardiac arrest",
+      "criticality_peak": 5,
+      "scene": {
+        "place": "Exposed hiking trail, then helicopter approach",
+        "bed": "hiking_trail_helicopter",
+        "snr_db": 20,
+        "snr_db_end": 6
+      },
+      "voice": {
+        "semitones": 0.0,
+        "rate": 1.0,
+        "channel": "handset_outdoor"
+      },
+      "turns": {
+        "t01": {
+          "turn": 1,
+          "script": "My mate's gone over on his ankle about two miles up the trail. He can't really walk on it. Nothing serious, I just wanted advice.",
+          "raw": "raw/s12_trail_deterioration/t01.wav",
+          "wav": "mixed/s12_trail_deterioration/t01.wav",
+          "sha256": "978484fd5fdf5299",
+          "mix": {
+            "snr_db": Infinity,
+            "snr_db_end": Infinity,
+            "channel": "handset_outdoor",
+            "duration_s": 9.18,
+            "voice_rms": 0.132529,
+            "bed_rms": 0.0
+          },
+          "expect_markers": [],
+          "expect_no_markers": [
+            "not_breathing",
+            "unresponsive"
+          ],
+          "defect": null,
+          "triage": {
+            "level": 1,
+            "escalation": "not_needed"
+          },
+          "stt": {
+            "transcript": "My mate's gone over on his ankle about 2 miles up the trail, he can't really walk on it. Nothing serious, I just wanted advice.",
+            "confidence": 1.0,
+            "word_count": 25,
+            "mean_word_confidence": 0.9848,
+            "model": "c0244ab1-78fc-4baf-886a-2e3f17013da8",
+            "request_id": "01a0b24b-4574-7992-9e9d-e804f46e1b25"
+          }
+        },
+        "t02": {
+          "turn": 2,
+          "script": "Actually he's gone really pale. He says he feels sick and his chest feels tight. He's sixty-two.",
+          "raw": "raw/s12_trail_deterioration/t02.wav",
+          "wav": "mixed/s12_trail_deterioration/t02.wav",
+          "sha256": "7d0d69cf32d81efb",
+          "mix": {
+            "snr_db": Infinity,
+            "snr_db_end": Infinity,
+            "channel": "handset_outdoor",
+            "duration_s": 7.82,
+            "voice_rms": 0.119894,
+            "bed_rms": 0.0
+          },
+          "expect_markers": [],
+          "expect_no_markers": [
+            "not_breathing",
+            "unresponsive"
+          ],
+          "defect": null,
+          "triage": {
+            "level": 4,
+            "escalation": "requested",
+            "note": "Chest pain in a 62-year-old is chest-pain-cardiac, severity 4. Criticality climbs 1 \u2192 4 and crosses the threshold.\n"
+          },
+          "stt": {
+            "transcript": "Actually, he's gone really pale. He says he feels sick and his chest feels tight. He's 62",
+            "confidence": 1.0,
+            "word_count": 17,
+            "mean_word_confidence": 0.9857,
+            "model": "c0244ab1-78fc-4baf-886a-2e3f17013da8",
+            "request_id": "01a0b24b-4f5f-75d0-b5bc-cfd44e4fd1b1"
+          }
+        },
+        "t03": {
+          "turn": 3,
+          "script": "He's gone down. He's collapsed, he's not responding to me, he's not breathing right \u2014 oh god.",
+          "raw": "raw/s12_trail_deterioration/t03.wav",
+          "wav": "mixed/s12_trail_deterioration/t03.wav",
+          "sha256": "0a6e86c0c129db80",
+          "mix": {
+            "snr_db": Infinity,
+            "snr_db_end": Infinity,
+            "channel": "handset_outdoor",
+            "duration_s": 7.5,
+            "voice_rms": 0.194097,
+            "bed_rms": 0.0
+          },
+          "expect_markers": [
+            "not_breathing",
+            "unresponsive"
+          ],
+          "expect_no_markers": [],
+          "defect": null,
+          "triage": {
+            "level": 5,
+            "escalation": "requested",
+            "note": "VERIFIED: both fire. \"not breathing right\" DOES match the not_breathing pattern, because the pattern matches the substring \"not breathing\" and the trailing \"right\" is outside the \\b anchor. Clinically this is the correct outcome \u2014 \"not breathing right\" is an arrest presentation \u2014 but it matches for an incidental reason rather than by design. Asserted as observed so that any future tightening of the pattern has to confront this case explicitly.\n"
+          },
+          "stt": {
+            "transcript": "He's gone down. He's collapsed. He's not responding to me. He's not breathing right. Oh god",
+            "confidence": 0.9956,
+            "word_count": 16,
+            "mean_word_confidence": 0.934,
+            "model": "c0244ab1-78fc-4baf-886a-2e3f17013da8",
+            "request_id": "01a0b24b-58b5-7713-84ad-92a1c2ea1ed6"
+          }
+        },
+        "t04": {
+          "turn": 4,
+          "script": "I'm doing compressions. There's a helicopter coming, I can hear it. How long do I keep going for?",
+          "raw": "raw/s12_trail_deterioration/t04.wav",
+          "wav": "mixed/s12_trail_deterioration/t04.wav",
+          "sha256": "bbec72ec69a38048",
+          "mix": {
+            "snr_db": Infinity,
+            "snr_db_end": Infinity,
+            "channel": "handset_outdoor",
+            "duration_s": 6.3,
+            "voice_rms": 0.176807,
+            "bed_rms": 0.0
+          },
+          "expect_markers": [],
+          "expect_no_markers": [],
+          "defect": null,
+          "triage": {
+            "level": 5,
+            "escalation": "requested"
+          },
+          "stt": {
+            "transcript": "I'm doing compressions. There's a helicopter coming. I can hear it. How long do I keep going for?",
+            "confidence": 1.0,
+            "word_count": 18,
+            "mean_word_confidence": 0.9906,
+            "model": "c0244ab1-78fc-4baf-886a-2e3f17013da8",
+            "request_id": "01a0b24b-6210-7023-b5c4-434e4d01545c"
+          }
+        },
+        "t05": {
+          "turn": 5,
+          "script": "He's breathing! He's breathing again, he's coughing \u2014 he's coming back!",
+          "raw": "raw/s12_trail_deterioration/t05.wav",
+          "wav": "mixed/s12_trail_deterioration/t05.wav",
+          "sha256": "1851caba1ec4de83",
+          "mix": {
+            "snr_db": Infinity,
+            "snr_db_end": Infinity,
+            "channel": "handset_outdoor",
+            "duration_s": 5.18,
+            "voice_rms": 0.220405,
+            "bed_rms": 0.0
+          },
+          "expect_markers": [],
+          "expect_no_markers": [
+            "not_breathing",
+            "unresponsive"
+          ],
+          "defect": null,
+          "triage": {
+            "level": 5,
+            "escalation": "requested",
+            "downgrade_refused": true,
+            "note": "ROSC does not lower criticality. A post-arrest patient is the most fragile patient on the scale. The ratchet must refuse any downgrade, and only a clinician stand-down could lower it \u2014 which is out of scope for the field agent.\n"
+          },
+          "stt": {
+            "transcript": "He's breathing. He's breathing again. He's coughing. He's coming back!",
+            "confidence": 0.9966,
+            "word_count": 10,
+            "mean_word_confidence": 0.9606,
+            "model": "c0244ab1-78fc-4baf-886a-2e3f17013da8",
+            "request_id": "01a0b24b-6b64-7651-a208-be4eca7d022b"
+          }
+        }
+      }
+    }
+  }
+}

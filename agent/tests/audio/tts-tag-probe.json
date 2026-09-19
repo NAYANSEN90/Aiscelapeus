@@ -1,0 +1,145 @@
+{
+  "model": "eleven_v3",
+  "voice_id": "EXAVITQu4vr4xnSDxMaL",
+  "probe_line": "He's on the floor and he is not moving at all.",
+  "baseline_repeats": 3,
+  "baseline": {
+    "duration_s": 3.253,
+    "rms": 0.22742
+  },
+  "noise_floor": {
+    "duration_pct": 12.3,
+    "rms_pct": 3.72
+  },
+  "thresholds": {
+    "duration_pct": 18.44,
+    "rms_pct": 8.0
+  },
+  "tags": {
+    "crying": {
+      "source": "documented",
+      "usable": true,
+      "duration_s": 3.04,
+      "duration_delta_pct": 6.6,
+      "rms_delta_pct": 12.1,
+      "margin": 1.52
+    },
+    "whispers": {
+      "source": "documented",
+      "usable": true,
+      "duration_s": 2.96,
+      "duration_delta_pct": 9.0,
+      "rms_delta_pct": 19.6,
+      "margin": 2.45
+    },
+    "sighs": {
+      "source": "documented",
+      "usable": true,
+      "duration_s": 4.08,
+      "duration_delta_pct": 25.4,
+      "rms_delta_pct": 18.3,
+      "margin": 2.29
+    },
+    "wheezing": {
+      "source": "documented",
+      "usable": false,
+      "duration_s": 3.44,
+      "duration_delta_pct": 5.7,
+      "rms_delta_pct": 6.7,
+      "margin": 0.83
+    },
+    "exhales": {
+      "source": "documented",
+      "usable": true,
+      "duration_s": 4.32,
+      "duration_delta_pct": 32.8,
+      "rms_delta_pct": 15.7,
+      "margin": 1.97
+    },
+    "laughs": {
+      "source": "documented",
+      "usable": false,
+      "duration_s": 3.68,
+      "duration_delta_pct": 13.1,
+      "rms_delta_pct": 0.8,
+      "margin": 0.71
+    },
+    "shouts": {
+      "source": "blog",
+      "usable": true,
+      "duration_s": 2.88,
+      "duration_delta_pct": 11.5,
+      "rms_delta_pct": 11.4,
+      "margin": 1.43
+    },
+    "rushed": {
+      "source": "blog",
+      "usable": true,
+      "duration_s": 2.72,
+      "duration_delta_pct": 16.4,
+      "rms_delta_pct": 23.8,
+      "margin": 2.98
+    },
+    "panicked": {
+      "source": "unverified",
+      "usable": true,
+      "duration_s": 2.8,
+      "duration_delta_pct": 13.9,
+      "rms_delta_pct": 8.6,
+      "margin": 1.08
+    },
+    "breathless": {
+      "source": "unverified",
+      "usable": true,
+      "duration_s": 3.76,
+      "duration_delta_pct": 15.6,
+      "rms_delta_pct": 9.8,
+      "margin": 1.23
+    },
+    "frantic": {
+      "source": "unverified",
+      "usable": true,
+      "duration_s": 2.64,
+      "duration_delta_pct": 18.9,
+      "rms_delta_pct": 23.5,
+      "margin": 2.93
+    },
+    "gasps": {
+      "source": "unverified",
+      "usable": true,
+      "duration_s": 3.76,
+      "duration_delta_pct": 15.6,
+      "rms_delta_pct": 15.6,
+      "margin": 1.95
+    },
+    "urgent": {
+      "source": "unverified",
+      "usable": true,
+      "duration_s": 2.72,
+      "duration_delta_pct": 16.4,
+      "rms_delta_pct": 13.3,
+      "margin": 1.66
+    },
+    "shaky": {
+      "source": "unverified",
+      "usable": false,
+      "duration_s": 3.2,
+      "duration_delta_pct": 1.6,
+      "rms_delta_pct": 2.8,
+      "margin": 0.34
+    }
+  },
+  "usable_tags": [
+    "breathless",
+    "crying",
+    "exhales",
+    "frantic",
+    "gasps",
+    "panicked",
+    "rushed",
+    "shouts",
+    "sighs",
+    "urgent",
+    "whispers"
+  ]
+}

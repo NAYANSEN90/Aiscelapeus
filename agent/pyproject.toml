@@ -28,6 +28,17 @@ dependencies = [
     # would have installed the wrong plugin set and errored at test collection.
     # turn-detector is also gone: nothing in aiscelapeus/ imports it.
     "moss>=1.11.0",
+    # `aiscelapeus/harness.py` reads its scenario files with it. The harness
+    # ships inside the runtime package rather than under tests/, so PyYAML is a
+    # runtime dependency of that package whatever its usage pattern - it was
+    # only ever declared under `dev`, which made `pip install aiscelapeus` build
+    # something whose `--headless` entrypoint raises on first use.
+    #
+    # The lazy import inside `load_scenario` stays: it fails with a HarnessError
+    # naming the fix rather than an ImportError at module load, which is the
+    # better failure for anyone running an older install. This declaration is
+    # what stops that path being reached in the first place.
+    "pyyaml>=6.0",
     # NOT a direct dependency by choice - it arrives transitively via
     # livekit-agents regardless (Spike 0). Declaring it would state an intent to
     # call OpenAI, which Session 2 decided against.
@@ -43,8 +54,12 @@ dev = [
     "pytest-cov>=5.0",
     "hypothesis>=6.100",
     "respx>=0.21",
-    "pyyaml>=6.0",
+    # pyyaml is NOT repeated here: it moved to `dependencies` above, because
+    # aiscelapeus/harness.py imports it. Listing it in both places would be two
+    # answers to "is this a runtime dependency", and the dev extra would mask a
+    # regression in the runtime declaration.
     "mypy>=1.11",
+    # Stubs only, so it stays a dev concern even though pyyaml itself is not.
     "types-PyYAML",
 ]
 
@@ -54,6 +69,19 @@ dev = [
 # `scripts/build_corpus.py`, which runs once to produce committed artefacts.
 # The default `pytest` run reads the committed manifest.json and imports none of
 # this, so the hermetic suite stays installable without a compiler toolchain.
+#
+# ELEVENLABS IS NOT LISTED HERE, AND THAT IS DELIBERATE.
+# `scripts/synthesize_voice.py` calls the ElevenLabs REST API over urllib - no
+# SDK, no package - so there is nothing to declare. Stating it another way: the
+# note above about elevenlabs and openai being dropped as vendors in WORKLOG
+# Session 2 remains true of this project's dependency graph. The corpus script
+# reaches a vendor at generation time the way `fetch_beds.py` reaches Freesound
+# and `build_corpus.py` reaches Deepgram; none of them is imported by
+# `aiscelapeus/`, and none runs in the test suite.
+#
+# Why ElevenLabs at all, when Deepgram is the runtime TTS: Aura-2 has no
+# emotion control - no SSML, no pitch, only `speed` 0.7-1.5 - so it cannot
+# perform a panicked caller. See synthesize_voice.py's module docstring.
 audio = [
     "librosa>=0.10",
     "soundfile>=0.12",

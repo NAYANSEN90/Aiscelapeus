@@ -57,22 +57,15 @@ from aiscelapeus.main import (  # noqa: E402
 from aiscelapeus.config import ModelConfig  # noqa: E402
 from aiscelapeus.transcript import BYSTANDER, RESPONDER, UNKNOWN_SPEAKER  # noqa: E402
 from aiscelapeus.triage import Criticality, EscalationStatus, TriageState  # noqa: E402
+from tests.corpus import (  # noqa: E402
+    CORPUS,
+    ESCALATING,
+    NON_ESCALATING,
+    NOT_HARD,
+    case_id,
+)
 
-CORPUS_PATH = Path(__file__).parent.parent / "data" / "utterances.yaml"
-
-
-def _corpus() -> list[dict]:
-    with CORPUS_PATH.open(encoding="utf-8") as handle:
-        return yaml.safe_load(handle)
-
-
-CORPUS = _corpus()
-ESCALATING = [case for case in CORPUS if case["expect"] is not None]
-NON_ESCALATING = [case for case in CORPUS if case["expect"] is None]
-
-
-def _id(case: dict) -> str:
-    return case["text"][:60]
+_id = case_id
 
 
 @dataclass
@@ -970,9 +963,12 @@ def test_the_edge_corpus_sweep_covers_every_declared_marker() -> None:
     # markers, so a marker could be unreachable through the edge - the one path
     # that matters - with no case noticing. This is the guard against the sweep
     # looking thorough while a marker slips through untested on the real path.
-    from aiscelapeus.phrases import MARKERS
+    # HARD_ESCALATING_MARKERS, not MARKERS - a marker that deliberately does not
+    # fire the net has no escalation to drive through the edge. See the matching
+    # note in test_escalation.py.
+    from aiscelapeus.phrases import HARD_ESCALATING_MARKERS
 
-    declared = {marker.marker_id for marker in MARKERS}
+    declared = {marker.marker_id for marker in HARD_ESCALATING_MARKERS}
     driven = {case["expect"] for case in ESCALATING}
     assert declared == driven, (
         f"markers never driven through the edge: {sorted(declared - driven)}"

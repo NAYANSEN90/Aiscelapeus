@@ -28,6 +28,7 @@ from __future__ import annotations
 import re
 import unicodedata
 from dataclasses import dataclass
+from enum import Enum
 
 # Curly quotes and dashes that STT emits and pattern authors do not type.
 _PUNCTUATION_FOLD = str.maketrans(
@@ -120,6 +121,38 @@ def normalize_for_match(text: str) -> str:
     return _WHITESPACE.sub(" ", folded).strip().casefold()
 
 
+class MarkerSeverity(str, Enum):
+    """Whether a marker may force an UNCORRECTABLE Critical.
+
+    An enum rather than a `hard: bool`, per CLAUDE.md: the two values name
+    clinical claims, and the name is what a future author has to read before
+    choosing one.
+
+    The distinction exists because hard escalation is not merely "strong". It is
+    irrevocable. `escalation.apply_hard_escalation` sets CRITICAL with
+    `provenance=EVIDENCE`, and ASM-14's ratchet permits exactly one correction -
+    a stored ASSUMPTION corrected by incoming EVIDENCE - so an EVIDENCE-grade
+    CRITICAL can never be lowered. Verified on the live path: a clinician on the
+    bridge reporting "awake, talking, radial pulse present" at EVIDENCE grade is
+    REFUSED and the incident stays Critical for its lifetime.
+
+    That is correct for a reported arrest: L1 must outrank later L2 arithmetic,
+    and `escalation.py` says so explicitly. It is wrong for a sign that merely
+    precedes arrest, because the recoverability the net's firing bias depends on
+    ("a clinician is paged, looks, and stands the incident down") does not exist
+    on this path. Making the power a property of the marker is what stops a new
+    finding inheriting it silently.
+    """
+
+    #: "This patient is dying right now." Forces CRITICAL, uncorrectably.
+    IMMINENT = "imminent"
+
+    #: "This patient may be heading there." Recorded, surfaced to the model and
+    #: the record, but does not fire the hard net. The model's own L2 assessment
+    #: sets the level, which stays correctable.
+    CONCERNING = "concerning"
+
+
 @dataclass(frozen=True)
 class Marker:
     """One life-threatening finding and the ways it gets reported."""
@@ -127,6 +160,7 @@ class Marker:
     marker_id: str
     pattern: re.Pattern[str]
     description: str
+    severity: MarkerSeverity = MarkerSeverity.IMMINENT
 
 
 @dataclass(frozen=True)
@@ -139,13 +173,26 @@ class MarkerHit:
     negated: bool = False
 
 
-def _marker(marker_id: str, alternatives: str, description: str) -> Marker:
+def _marker(
+    marker_id: str,
+    alternatives: str,
+    description: str,
+    severity: MarkerSeverity = MarkerSeverity.IMMINENT,
+) -> Marker:
     # \b on both ends keeps "arrest" from matching inside "arrested" and stops
     # a marker firing on a word fragment.
+    #
+    # `severity` defaults to IMMINENT so that the existing markers keep the
+    # meaning they were written with, and so an author adding a finding that
+    # really is an arrest presentation does not have to remember a flag. The
+    # weaker value is the one that must be typed, which is the right way round:
+    # CONCERNING is the claim that needs the thought, and the test that pins
+    # `HARD_ESCALATING_MARKERS` makes either choice a visible edit.
     return Marker(
         marker_id=marker_id,
         pattern=re.compile(rf"\b(?:{alternatives})\b"),
         description=description,
+        severity=severity,
     )
 
 
@@ -200,6 +247,48 @@ _NON_CASUALTY_OBJECTS: tuple[str, ...] = (
     "hose",
     "cover",
     "ball",
+)
+
+
+#: How failing perfusion gets described, for the `pallor` marker. Named for the
+#: same reason as the places above - it is a rule, and a rule gets one home -
+#: but with a sharper edge: NONE of these words may ever be matched on its own.
+#:
+#: "grey" and "white" are among the commonest adjectives in English, and they
+#: describe cars, jumpers, hair and doors far more often than they describe a
+#: casualty. A bare `\bgrey\b` fires on "he's got grey hair" - a caller helping
+#: the crew identify the patient - and forces an irreversible Level 5. A safety
+#: net that fires on ordinary description is one somebody switches off, so every
+#: use of this tuple is scoped by a change-of-state verb, by an explicit body
+#: part, or sits inside a self-contained idiom.
+#:
+#: "blue" is deliberately absent: that finding is `cyanosis`, a different
+#: mechanism with a different marker.
+_PALLOR_COLOURS: tuple[str, ...] = (
+    "grey",
+    "gray",
+    "ashen",
+    "pale",
+    "white",
+    "pasty",
+    "waxy",
+    "washed\\s+out",
+)
+
+
+#: An emotion named as the CAUSE of the colour, which makes the phrase an idiom
+#: about a reaction rather than a report of perfusion. "he was white with rage",
+#: "she's pale with fear" - a witness describing how someone took the news, not
+#: a clinical observation about the casualty.
+#:
+#: "shock" is deliberately ABSENT, and that absence is the considered part.
+#: "Pale with shock" is genuinely ambiguous: shock is both an emotional state
+#: and a perfusion diagnosis - the perfusion diagnosis this marker exists to
+#: catch. Suppressing it would trade a false positive for a false negative on
+#: the one word most likely to carry the real finding, which is the wrong
+#: direction for this module. It fires, as it did before.
+_EMOTIONAL_CAUSE = (
+    r"\s+with\s+(?:rage|anger|fury|fear|worry|jealousy|envy|embarrassment|rage)"
 )
 
 
@@ -283,6 +372,133 @@ MARKERS: tuple[Marker, ...] = (
         r"|blue\s+lips",
         "Cyanosis - failing oxygenation.",
     ),
+    # Pallor is a SEPARATE marker rather than an extension of `cyanosis` above.
+    # Four considerations, in the order they decided it:
+    #
+    # 1. The severity. They do not carry the same power. Cyanosis is failing
+    #    oxygenation - an airway/breathing finding, IMMINENT. Pallor is failing
+    #    perfusion, which precedes arrest rather than announcing it, and is
+    #    CONCERNING. Folding them together would give greyness the irrevocable
+    #    Critical that only the first deserves. This is the decisive reason, and
+    #    it is the one that cannot be expressed by a shared id at all.
+    #
+    # 2. The behaviour. The escalation applier pages once per
+    #    `session_id:marker_id` (see main.py). Under a shared id, a caller who
+    #    reports blue lips and THEN deteriorates to grey pages once - the second
+    #    finding is deduplicated away against the first.
+    #
+    # 3. The trace. `triage.marker` is what a clinician reads when paged. They
+    #    are clinically different findings - cyanosis is deoxygenated
+    #    haemoglobin, pallor is poor perfusion - and filing one under the other
+    #    makes the trace state something false about the patient.
+    #
+    # 4. The convention. Every marker here is named for its finding, not for a
+    #    category of findings.
+    #
+    # The cost is that the marker id set grows, which the corpus and the
+    # scenario expectations assert against. That cost is paid once, in test
+    # data.
+    _marker(
+        "pallor",
+        # Change of state. This is the load-bearing form: the finding is that
+        # the colour CHANGED, which is what makes it a clinical observation
+        # rather than a description of a person. The colour alternatives are
+        # only ever reachable through one of these verbs, or through the
+        # skin/face scoping below, or as a self-contained idiom - never alone.
+        rf"(?:gone|going|turning|turned|went|goes)\s+"
+        rf"(?:all\s+|really\s+|very\s+|a\s+bit\s+|dead\s+|deathly\s+)?"
+        rf"(?:{'|'.join(_PALLOR_COLOURS)})"
+        rf"(?!{_EMOTIONAL_CAUSE})"
+        # Bare copula with a PERSONAL PRONOUN subject: "he's grey", "she was
+        # ashen". No change verb and no body part, so the only thing separating
+        # this from "the wall is grey" is that the subject is a person - which
+        # is exactly the distinction, and it is why the pronoun is required
+        # rather than any subject. s08's caller says "he's grey" before saying
+        # "he's gone grey", and the first clause is the same finding.
+        #
+        # The subject and copula sit in a LOOKBEHIND so the match begins at the
+        # COLOUR. That is load-bearing for negation rather than stylistic, and
+        # it was established by execution, not by reading: `_is_negated` walks
+        # left from the match start, so a match that began at the copula would
+        # enclose the "not" of "he's not grey" and the walk would start past it.
+        # Verified both ways - starting at the colour suppresses "he's not
+        # grey"; starting at the copula fires on it.
+        #
+        # Python requires each lookbehind branch to be fixed-width, which is why
+        # these are enumerated rather than written as one alternation with an
+        # optional intensifier. The intensifier therefore cannot appear in this
+        # branch; "he's deathly pale" is carried by the idiom alternative below.
+        rf"|(?:(?<=\bhe's\s)|(?<=\bshe's\s)|(?<=\bhe\swas\s)"
+        rf"|(?<=\bshe\swas\s)|(?<=\bthey're\s)|(?<=\bhe\sis\s)"
+        rf"|(?<=\bshe\sis\s))"
+        rf"(?:{'|'.join(_PALLOR_COLOURS)})"
+        rf"(?!{_EMOTIONAL_CAUSE})"
+        # Colour scoped to skin or face. A stative report with no change verb -
+        # "his face is grey", "she's grey in the face" - is the same finding
+        # said the other way round, and s08's caller says both in one breath.
+        rf"|(?:{'|'.join(_PALLOR_COLOURS)})\s+(?:in|around)\s+the\s+"
+        rf"(?:face|lips|mouth|gills)"
+        # The noun here must be a BODY PART, or "colour" carrying a possessive
+        # that ties it to a person. The bare noun "colour" was admitted at first
+        # and it fired on "the van's colour is grey, it just drove off" - a
+        # vehicle description relayed to dispatch, which is routine mid-call on
+        # an RTC and reaches `find_markers` like any other utterance. The
+        # sibling branch above was already scoped to body parts; this one was
+        # not, and the asymmetry was the defect. Found by independent review.
+        rf"|(?:(?:his|her|their)\s+colou?r|face|skin|lips)\s+"
+        rf"(?:is|looks?|has\s+gone|went)\s+"
+        rf"(?:all\s+|really\s+|very\s+|dead\s+|deathly\s+)?"
+        rf"(?:{'|'.join(_PALLOR_COLOURS)})"
+        # Self-contained idioms. These carry no colour word that could be about
+        # anything else, so they need no scoping.
+        rf"|white\s+as\s+a\s+(?:sheet|ghost)"
+        rf"|ashen"
+        rf"|deathly\s+pale"
+        rf"|grey\s+as\s+(?:a\s+)?(?:corpse|ghost)"
+        # Colour LOST rather than colour named. A caller who cannot say which
+        # colour is still reporting the change, and the change is the finding.
+        rf"|(?:gone|going)\s+(?:a\s+)?(?:funny|odd|strange|horrible|awful|"
+        rf"terrible|weird)\s+colou?r"
+        rf"|(?:lost|losing)\s+(?:all\s+)?(?:his|her|their|its)?\s*colou?r"
+        rf"|no\s+colou?r\s+in\s+(?:his|her|their)\s+(?:face|lips)"
+        rf"|drained\s+of\s+colou?r"
+        # Colour as the SUBJECT that departs, rather than a property that takes a
+        # new value: "her colour's gone", "the colour's draining out of him".
+        # Every branch above is shaped "<person> <verb> <colour>" and none of
+        # them sees the colour word in subject position. The possessive or the
+        # trailing "out of <person>" is what keeps this tied to a casualty
+        # rather than to a fading paint job. Found by independent review.
+        rf"|(?:his|her|their)\s+colou?r(?:'s|\s+has|\s+had)?\s+"
+        rf"(?:gone|going|draining|drained|draining\s+away)"
+        # The drained-from target must be a PERSON. An earlier form allowed
+        # "from <anything>" and fired on "the colour is draining from the
+        # photo"; "out of" plus a pronoun or a possessed body part is the
+        # phrasing a caller actually uses about a casualty.
+        rf"|colou?r(?:'s|\s+is|\s+was)?\s+"
+        rf"(?:draining|drained|drain)\s+out\s+of\s+"
+        rf"(?:him|her|them|(?:his|her|their)\s+\w+)",
+        "Pallor - failing perfusion. Clinically distinct from cyanosis.",
+        # The ONLY marker that does not fire the hard net, and the reason is
+        # measured rather than argued. `escalation.py` sets CRITICAL at
+        # EVIDENCE grade, which ASM-14 makes uncorrectable; executed on the live
+        # path, a clinician reporting "awake, talking, radial pulse present"
+        # comes back `rejected=True` with the level still 5.
+        #
+        # A pale, talking, breathing 62-year-old is Severe, not in arrest - see
+        # `s12_trail_deterioration` turn 2, where this marker fires on "gone
+        # really pale" alongside chest pain. Firing the hard net there would
+        # pin that incident at Critical for its lifetime with no way back, and
+        # would make the strongest rule in the system fire on its weakest
+        # evidence. A net that escalates a pale patient to Critical will be
+        # distrusted when it escalates an apnoeic one.
+        #
+        # The finding is NOT discarded: `find_markers` still reports it, so it
+        # reaches the record and the model's own L2 assessment, which sets a
+        # level that remains correctable. Detection and irrevocable escalation
+        # are separated here for the first time; they were the same thing only
+        # because every previous marker deserved both.
+        MarkerSeverity.CONCERNING,
+    ),
     _marker(
         "cannot_breathe",
         r"can(?:'t|not)\s+breathe"
@@ -324,6 +540,20 @@ MARKERS: tuple[Marker, ...] = (
         rf"out\s+of\s+the\s+(?:{'|'.join(_SUBMERSION_PLACES)})",
         "Drowning - treat as arrest until proven otherwise.",
     ),
+)
+
+
+#: The markers that may force an uncorrectable Critical. DERIVED from the
+#: severity on each marker rather than listed again here: one source of truth
+#: per CLAUDE.md, so a marker cannot be IMMINENT in one place and absent from
+#: the hard net in another.
+#:
+#: Read `MarkerSeverity` before adding to this set. Membership is not "this
+#: finding is serious" - every marker in this module is serious. It is "a
+#: clinician who looks at this patient and disagrees must not be able to lower
+#: the level", which is what EVIDENCE-grade CRITICAL means in practice.
+HARD_ESCALATING_MARKERS: tuple[Marker, ...] = tuple(
+    marker for marker in MARKERS if marker.severity is MarkerSeverity.IMMINENT
 )
 
 
@@ -377,7 +607,68 @@ def _is_negated(normalised: str, start: int) -> bool:
     return False
 
 
-def _contradicted_later(normalised: str, end: int) -> bool:
+#: How a responder says the casualty got better. Both the interrogative test and
+#: the retraction test below derive from this, because they are two readings of
+#: the same vocabulary and a word added to one and not the other would make a
+#: question look like a retraction.
+#:
+#: GENERAL recovery language only - words that speak to being alive, breathing
+#: and responsive, and so bear on any finding in this module. Vocabulary that
+#: retracts ONE finding and not the others belongs in `_MARKER_RECOVERY_WORDS`.
+_RECOVERY_WORDS: tuple[str, ...] = (
+    "breathing",
+    "awake",
+    "responding",
+    "conscious",
+    "talking",
+    "alert",
+    "fine",
+    "ok",
+    "okay",
+    "back\\s+to\\s+normal",
+)
+
+#: Recovery language that retracts one SPECIFIC finding and must not be read as
+#: retracting any other.
+#:
+#: This split is a fix for a fatal defect rather than a tidiness measure, and it
+#: is worth stating plainly because the shape looks like the DRY violation it is
+#: actually preventing. The colour terms were first added to the shared tuple
+#: above, on the reasoning that every finding needs its recovery language
+#: represented. That reasoning was wrong in one direction that kills:
+#:
+#:     "he wasn't breathing, but now he's got his colour back"   -> NOTHING
+#:
+#: `_contradicted_later` is consulted for EVERY marker, so a colour phrase in
+#: the shared bag retracted `not_breathing`. A bystander giving rescue breaths
+#: SEES the colour improve - that is what their own effort does - while
+#: spontaneous breathing has not returned, and reporting exactly that silenced
+#: the net completely. Colour returning is not evidence of breathing.
+#:
+#: Recovery vocabulary is therefore one rule PER FINDING, not one rule. That is
+#: what DRY asks for here: a single home for each rule, not a single home for
+#: all of them. Found by independent review; verified by execution both ways.
+_MARKER_RECOVERY_WORDS: dict[str, tuple[str, ...]] = {
+    "pallor": (
+        "colou?r\\s+back",
+        "got\\s+(?:his|her|their)\\s+colou?r",
+        "colou?r\\s+(?:is\\s+)?(?:coming|returning)\\s+back",
+        "pink\\s+again",
+        "pinked\\s+up",
+    ),
+}
+
+
+def _recovery_alternation(marker_id: str | None) -> str:
+    """The recovery vocabulary that may retract `marker_id`.
+
+    The general words always apply; a marker's own words apply only to it.
+    """
+    words = _RECOVERY_WORDS + _MARKER_RECOVERY_WORDS.get(marker_id or "", ())
+    return "|".join(words)
+
+
+def _contradicted_later(normalised: str, end: int, marker_id: str | None = None) -> bool:
     """Whether the responder corrects the finding immediately after reporting it.
 
     "he was not breathing but now he is breathing again" and "he was
@@ -416,7 +707,7 @@ def _contradicted_later(normalised: str, end: int) -> bool:
         r"\b(?:is|are|was|were|has|have|can|does|do|should|will)\s+"
         r"(?:he|she|they|it|him|her|the\s+\w+)\b"
         r".{0,20}?"
-        r"\b(?:breathing|awake|responding|conscious|talking|alert|fine|ok|okay)\b",
+        rf"\b(?:{_recovery_alternation(marker_id)})\b",
         remainder,
     )
     if inverted:
@@ -425,7 +716,7 @@ def _contradicted_later(normalised: str, end: int) -> bool:
     return bool(
         re.search(
             r"\b(?:but|now|then)\b.{0,40}?"
-            r"\b(?:breathing|awake|responding|conscious|talking|alert|fine|ok|okay)\b",
+            rf"\b(?:{_recovery_alternation(marker_id)})\b",
             remainder,
         )
     )
@@ -460,7 +751,9 @@ def _past_tense_before(normalised: str, start: int) -> bool:
     return bool(matched_first) and matched_first[0] in _PAST_TENSE_AUXILIARIES
 
 
-def _is_suppressed(normalised: str, start: int, end: int) -> bool:
+def _is_suppressed(
+    normalised: str, start: int, end: int, marker_id: str | None = None
+) -> bool:
     """Whether this one occurrence of a marker is not a live finding.
 
     One predicate over one span, so `find_markers` can ask the same question of
@@ -488,7 +781,7 @@ def _is_suppressed(normalised: str, start: int, end: int) -> bool:
     if _is_negated(normalised, start):
         return True
     return _past_tense_before(normalised, start) and _contradicted_later(
-        normalised, end
+        normalised, end, marker_id
     )
 
 
@@ -520,7 +813,7 @@ def find_markers(text: str) -> tuple[MarkerHit, ...]:
     for marker in MARKERS:
         for match in marker.pattern.finditer(normalised):
             start, end = match.span()
-            if _is_suppressed(normalised, start, end):
+            if _is_suppressed(normalised, start, end, marker.marker_id):
                 continue
             hits.append(
                 MarkerHit(
@@ -535,6 +828,19 @@ def find_markers(text: str) -> tuple[MarkerHit, ...]:
 
 
 def hard_escalation_triggered(text: str) -> MarkerHit | None:
-    """The first life-threat marker in the utterance, or None."""
-    hits = find_markers(text)
-    return hits[0] if hits else None
+    """The first marker that justifies forcing an uncorrectable Critical.
+
+    NOT simply the first marker present. `find_markers` reports every finding,
+    including the ones that belong in the record without warranting the hard
+    net; this asks the narrower question the escalation path actually needs.
+
+    The two were the same function until `pallor` arrived, because every marker
+    before it was an arrest presentation. Keeping them the same would have given
+    a perfusion sign the power to pin an incident at Critical for its lifetime
+    with no clinician able to lower it - see `MarkerSeverity`.
+    """
+    hard = {marker.marker_id for marker in HARD_ESCALATING_MARKERS}
+    for hit in find_markers(text):
+        if hit.marker_id in hard:
+            return hit
+    return None

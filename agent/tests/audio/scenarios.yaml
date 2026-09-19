@@ -1,0 +1,1316 @@
+# Voice triage scenario corpus — the single source of truth.
+#
+# Everything else derives from this file: docs/TESTS.md is rendered from it,
+# RECORDING-SCRIPT.md is rendered from it, build_corpus.py mixes audio named by
+# it, and tests/scenarios/test_voice_scenarios.py asserts against it. DRY per
+# CLAUDE.md: one source of truth for a rule, not merely no duplicated text.
+#
+# ---------------------------------------------------------------------------
+# THE THREE-LAYER ORACLE
+# ---------------------------------------------------------------------------
+# Each responder turn carries expectations for three independently-testable
+# layers. They are separated because they fail independently and because only
+# the first two are deterministic:
+#
+#   markers   — phrases.py. Pure function of text. No model, no network.
+#               `expect_markers` lists marker_ids that MUST fire.
+#               `expect_no_markers` lists marker_ids that MUST NOT fire, which
+#               is the stronger assertion: it is what proves negation and
+#               past-tense suppression actually work.
+#
+#   triage    — triage.py. Criticality after this turn, escalation status, and
+#               whether a downgrade was refused by the ratchet.
+#
+#   agent     — agent.py + the LLM. Which tools should be called and which
+#               protocol ids should come back. NOT asserted in the hermetic
+#               run (needs Gemini + Moss); it is a reviewable oracle and drives
+#               the `infra`-marked suite.
+#
+# ---------------------------------------------------------------------------
+# FIELD REFERENCE
+# ---------------------------------------------------------------------------
+# scene.bed        — key into beds/ (see fetch_beds.py BED_SPECS)
+# scene.snr_db     — voice-to-ambient ratio at mix time. Lower = harder for STT.
+# voice.semitones  — formant-preserving pitch shift, ±2 range, so one reader
+#                    sounds like a different caller per scenario.
+# voice.rate       — time-stretch factor. >1.0 is faster/more rushed.
+# voice.channel    — phone channel simulation profile (see build_corpus.py).
+# turns[].text     — what the responder says. Written as spoken: fragments,
+#                    repeats, self-corrections. This is the recording script.
+# turns[].direction — delivery note for the human reader. Not spoken.
+
+version: 1
+
+# Deepgram config the transcription stage must use. Mirrors main.py so the
+# corpus is transcribed by the same model the production path uses.
+stt:
+  model: nova-3-medical
+  language: en-US
+  smart_format: true
+  numerals: true
+  keyterms:
+    - tourniquet
+    - AED
+    - defibrillator
+    - adrenaline
+    - epinephrine
+    - anaphylaxis
+    - CPR
+    - compressions
+    - unresponsive
+    - haemorrhage
+
+scenarios:
+
+  # =========================================================================
+  - id: s01_kitchen_cut
+    title: Minor cut on the hand
+    criticality_peak: 1
+    summary: >
+      A parent nicks their hand on a kitchen knife. Genuinely minor. This is
+      the floor of the scale and the case the system must NOT over-escalate:
+      an agent that reaches for a clinician here is useless in the field
+      because it will be ignored when it matters.
+    scene:
+      place: Domestic kitchen, mid-afternoon
+      description: >
+        Tap running, radio on low, a dishwasher mid-cycle. Nothing urgent.
+        The caller is mildly annoyed rather than frightened.
+      bed: kitchen_domestic
+      snr_db: 25
+    voice:
+      semitones: 0.0
+      rate: 1.0
+      channel: handset_close
+    # ElevenLabs stock voice. A distinct speaker per scenario is far
+    # better than pitch-shifting one reader, so `voice.semitones` above
+    # is 0 for synthesised turns - see synthesize_voice.py.
+    tts:
+      voice_id: EXAVITQu4vr4xnSDxMaL
+      voice_name: Sarah
+      voice_note: young adult woman, calm, domestic
+    turns:
+      - n: 1
+        text: >
+          Hi, yeah, sorry — I've just cut my hand on a knife doing the
+          vegetables. It's not deep or anything, it's just bleeding a bit more
+          than I expected.
+        direction: >
+          Calm, faintly embarrassed. Slight laugh on "sorry". Normal pace.
+          You are not worried, you just want to be told what to do.
+        expect_markers: []
+        expect_no_markers: [not_breathing, unresponsive, no_pulse]
+        triage:
+          level: 1
+          escalation: not_needed
+        agent:
+          tools: [assess_criticality, lookup_protocol]
+          protocols: [minor-wound]
+      - n: 2
+        text: >
+          It's on the pad of my thumb. Maybe a centimetre? It's oozing, it's
+          not squirting or anything.
+        direction: >
+          Matter-of-fact. Looking at your own thumb while you talk.
+        expect_markers: []
+        expect_no_markers: [not_breathing, unresponsive]
+        triage:
+          level: 1
+          escalation: not_needed
+        agent:
+          tools: [record_finding]
+      - n: 3
+        text: >
+          Okay, it's under the tap now. It's stopped, actually. It's fine.
+        direction: >
+          Relieved, slightly dismissive. You are ready to hang up.
+        expect_markers: []
+        expect_no_markers: [not_breathing, unresponsive]
+        triage:
+          level: 1
+          escalation: not_needed
+        agent:
+          tools: [record_finding]
+
+  # =========================================================================
+  - id: s02_playground_wrist
+    title: Suspected wrist fracture, child
+    criticality_peak: 2
+    summary: >
+      A child falls off playground equipment onto an outstretched hand.
+      Needs care, not urgency. Tests that a distressed CHILD in the background
+      does not by itself drive criticality up — the casualty is crying, which
+      means the casualty is breathing.
+    scene:
+      place: Public playground, windy afternoon
+      description: >
+        Wind across the mic, other children playing, the casualty crying
+        continuously in the near background. The parent is concerned but
+        controlled.
+      bed: playground_wind
+      snr_db: 18
+    voice:
+      semitones: 0.0
+      rate: 1.05
+      channel: handset_outdoor
+    # ElevenLabs stock voice. A distinct speaker per scenario is far
+    # better than pitch-shifting one reader, so `voice.semitones` above
+    # is 0 for synthesised turns - see synthesize_voice.py.
+    tts:
+      voice_id: XrExE9yKIg1WjnnlVkGX
+      voice_name: Matilda
+      voice_note: warm adult woman, a parent
+    turns:
+      - n: 1
+        text: >
+          My daughter came off the climbing frame, she landed on her arm and
+          she's screaming. She's holding her wrist, she won't let me touch it.
+        direction: >
+          Raised voice — you are competing with wind and a crying child.
+          Concerned, controlled. Not panicking.
+        expect_markers: []
+        expect_no_markers: [not_breathing, unresponsive, no_pulse]
+        triage:
+          level: 2
+          escalation: not_needed
+        agent:
+          tools: [assess_criticality, lookup_protocol, record_finding]
+          protocols: [fracture-immobilise]
+      - n: 2
+        text: >
+          She's seven. She's crying really hard but she's talking to me. It
+          looks — I don't know, it looks a bit bent? Just below the hand.
+        direction: >
+          The "a bit bent" should land with unease. You do not want to say it.
+        expect_markers: []
+        expect_no_markers: [not_breathing, unresponsive]
+        triage:
+          level: 2
+          escalation: not_needed
+        agent:
+          tools: [record_finding]
+          protocols: [fracture-immobilise]
+      - n: 3
+        text: >
+          No, no, her fingers are fine, they're warm, she can wiggle them.
+          She's just — she won't stop crying.
+        direction: >
+          Answering a question. Slight relief on "warm", then worry returns.
+        expect_markers: []
+        expect_no_markers: [not_breathing, unresponsive]
+        triage:
+          level: 2
+          escalation: not_needed
+        agent:
+          tools: [record_finding]
+
+  # =========================================================================
+  - id: s03_office_seizure
+    title: Seizure that has now stopped
+    criticality_peak: 3
+    summary: >
+      A colleague has a seizure at a desk. By the time the call connects the
+      jerking has stopped and they are postictal — unresponsive to speech but
+      breathing normally. This is the scenario most likely to be WRONGLY
+      escalated to 5: "not responding" fires the unresponsive marker, and it
+      should, because a deterministic safety net that stays silent here would
+      also stay silent in a real arrest. The correct behaviour is that the
+      marker fires and the agent then establishes normal breathing.
+    scene:
+      place: Open-plan office
+      description: >
+        HVAC hum, distant phones, a colleague talking over the caller.
+        The caller is a trained-ish first aider trying to sound composed.
+      bed: office_openplan
+      snr_db: 22
+    voice:
+      semitones: 0.0
+      rate: 1.0
+      channel: handset_close
+    # ElevenLabs stock voice. A distinct speaker per scenario is far
+    # better than pitch-shifting one reader, so `voice.semitones` above
+    # is 0 for synthesised turns - see synthesize_voice.py.
+    tts:
+      voice_id: TX3LPaxmHKxFdv7VOQHJ
+      voice_name: Liam
+      voice_note: adult man, measured, professional
+    turns:
+      - n: 1
+        text: >
+          One of my colleagues just had a seizure at his desk. He's on the
+          floor. The shaking's stopped now but he's not responding to me.
+        direction: >
+          Trying to be the calm one. Slightly clipped, professional.
+        expect_markers: [unresponsive]
+        expect_no_markers: [not_breathing, no_pulse]
+        triage:
+          level: 5
+          escalation: requested
+          note: >
+            The unresponsive marker forces Level 5 via the hard-escalation
+            path in agent.record_finding. This is correct and deliberate:
+            phrases.py cannot know the casualty is breathing until the agent
+            asks. The next turn establishes normal breathing, and the ratchet
+            correctly REFUSES to downgrade.
+        agent:
+          tools: [record_finding, assess_criticality, escalate_to_clinician, lookup_protocol]
+          protocols: [seizure, airway-recovery-position]
+      - n: 2
+        text: >
+          He is breathing, yeah. Properly, like — normal breaths, I can see
+          his chest going. He's just out of it.
+        direction: >
+          Answering a direct question. Look at the chest as you say it.
+          Reassuring yourself as much as the agent.
+        expect_markers: []
+        expect_no_markers: [not_breathing, inadequate_breathing]
+        triage:
+          level: 5
+          escalation: requested
+          downgrade_refused: true
+          note: >
+            Even though this turn is reassuring, criticality MUST NOT drop.
+            set_level refuses the downgrade and returns rejected=True. This is
+            the ratchet property that survived a self-review bug.
+        agent:
+          tools: [record_finding, lookup_protocol]
+          protocols: [airway-recovery-position]
+      - n: 3
+        text: >
+          It lasted about a minute I think? Maybe less. He's diabetic, I know
+          that much. He's starting to mumble now.
+        direction: >
+          Recalling under pressure, uncertain on the timing.
+        expect_markers: []
+        expect_no_markers: [not_breathing, unresponsive]
+        triage:
+          level: 5
+          escalation: requested
+        agent:
+          tools: [record_finding, lookup_protocol]
+          protocols: [seizure, hypoglycaemia]
+
+  # =========================================================================
+  - id: s04_kitchen_burn
+    title: Thermal burn to the forearm
+    criticality_peak: 3
+    summary: >
+      A commercial kitchen worker takes hot oil across the forearm. Tests
+      protocol detail correctness under a noisy channel — the 20-minute cool
+      water rule and the explicit do-not list (no ice, no butter, no ointment)
+      are the things a responder will get wrong from folk memory.
+    scene:
+      place: Commercial restaurant kitchen, service
+      description: >
+        Extractor fans roaring, pans, raised voices, an order bell. Genuinely
+        loud. The caller is in pain and being jostled.
+      bed: kitchen_commercial
+      snr_db: 15
+    voice:
+      semitones: 0.0
+      rate: 1.15
+      channel: speakerphone
+    # ElevenLabs stock voice. A distinct speaker per scenario is far
+    # better than pitch-shifting one reader, so `voice.semitones` above
+    # is 0 for synthesised turns - see synthesize_voice.py.
+    tts:
+      voice_id: N2lVS1w4EtoT3dr4eOWO
+      voice_name: Callum
+      voice_note: adult man, rougher, in pain
+    turns:
+      - n: 1
+        text: >
+          I've burnt my arm, hot oil went over it, it's — it's really going.
+          From my wrist up to about my elbow.
+        direction: >
+          Through gritted teeth. Genuine pain. You are shouting over the
+          extractor without realising you are shouting.
+        expect_markers: []
+        expect_no_markers: [not_breathing, unresponsive, no_pulse]
+        triage:
+          level: 3
+          escalation: not_needed
+        agent:
+          tools: [assess_criticality, lookup_protocol, record_finding]
+          protocols: [burns-thermal]
+      - n: 2
+        text: >
+          Someone's saying put butter on it — should I put butter on it? Or
+          we've got ice in the back?
+        direction: >
+          Asking fast, half-turned away from the phone talking to a colleague.
+          This is the folk-remedy trap.
+        expect_markers: []
+        expect_no_markers: [not_breathing, unresponsive]
+        triage:
+          level: 3
+          escalation: not_needed
+          note: >
+            The agent must refuse both. protocols.py burns-thermal is explicit:
+            "Do not use ice, butter, or ointment."
+        agent:
+          tools: [lookup_protocol]
+          protocols: [burns-thermal]
+      - n: 3
+        text: >
+          It's under the cold tap. How long do I stand here for? It's gone all
+          red and there's a blister coming up near my wrist.
+        direction: >
+          Calmer now, the water is helping. Impatient about the time.
+        expect_markers: []
+        expect_no_markers: [not_breathing, unresponsive]
+        triage:
+          level: 3
+          escalation: not_needed
+        agent:
+          tools: [record_finding, lookup_protocol]
+          protocols: [burns-thermal]
+
+  # =========================================================================
+  - id: s05_roadside_bleed
+    title: Uncontrolled thigh haemorrhage
+    criticality_peak: 4
+    summary: >
+      A motorcyclist down at a roadside with arterial bleeding from the thigh.
+      This is the first scenario that crosses the escalation threshold (4)
+      WITHOUT any phrases.py marker firing — proving escalation is driven by
+      assessed criticality, not only by the deterministic net.
+    scene:
+      place: Unlit A-road, night, raining
+      description: >
+        Passing traffic, rain on a jacket, wind buffeting the mic. The caller
+        is kneeling in the road, hands occupied, phone on speaker on the tarmac.
+      bed: roadside_rain_night
+      snr_db: 10
+    voice:
+      semitones: 0.0
+      rate: 1.2
+      channel: speakerphone_wet
+    # ElevenLabs stock voice. A distinct speaker per scenario is far
+    # better than pitch-shifting one reader, so `voice.semitones` above
+    # is 0 for synthesised turns - see synthesize_voice.py.
+    tts:
+      voice_id: onwK4e9ZLuTAKqWW03F9
+      voice_name: Daniel
+      voice_note: adult man, deeper, authoritative
+    turns:
+      - n: 1
+        text: >
+          There's a motorbike gone off the road, the rider's down, his leg's
+          — there's blood everywhere, it's pumping out of his thigh. It's
+          properly pumping.
+        direction: >
+          Loud, fast, breathing hard. You have just run to him. The repetition
+          of "pumping" is the panic showing.
+        expect_markers: []
+        expect_no_markers: [not_breathing, unresponsive, no_pulse]
+        triage:
+          level: 4
+          escalation: requested
+          note: >
+            Level 4 meets the default ESCALATION_THRESHOLD, so
+            should_escalate() is true and a clinician is requested on this
+            turn — with no marker having fired.
+        agent:
+          tools: [assess_criticality, escalate_to_clinician, lookup_protocol, record_finding]
+          protocols: [bleed-tourniquet]
+      - n: 2
+        text: >
+          He's talking, he's awake, he keeps asking about his bike. But the
+          blood's not stopping, I've got my hands on it and it's coming
+          through my fingers.
+        direction: >
+          The contrast is the point — relief about "talking", terror about
+          "through my fingers". Let the second half accelerate.
+        expect_markers: []
+        expect_no_markers: [not_breathing, unresponsive, no_pulse]
+        triage:
+          level: 4
+          escalation: requested
+        agent:
+          tools: [record_finding, lookup_protocol]
+          protocols: [bleed-tourniquet]
+      - n: 3
+        text: >
+          Someone's got a first aid kit from their car, there's a tourniquet
+          thing in it. Where do I put it? How high up?
+        direction: >
+          Urgent, practical. You need an answer in the next two seconds.
+        expect_markers: []
+        expect_no_markers: [not_breathing, unresponsive]
+        triage:
+          level: 4
+          escalation: requested
+        agent:
+          tools: [lookup_protocol]
+          protocols: [bleed-tourniquet]
+      - n: 4
+        text: >
+          Okay it's on, it's tight, I've wound it right up. The bleeding's
+          stopped. He's screaming at me that it hurts.
+        direction: >
+          Breathless relief. Slight defensiveness about hurting him.
+        expect_markers: []
+        expect_no_markers: [not_breathing, unresponsive]
+        triage:
+          level: 4
+          escalation: requested
+          downgrade_refused: true
+          note: >
+            Bleeding controlled does not lower criticality. The ratchet holds.
+        agent:
+          tools: [record_finding, lookup_protocol]
+          protocols: [bleed-tourniquet, shock-management]
+
+  # =========================================================================
+  - id: s06_livingroom_stroke
+    title: Suspected stroke, FAST positive
+    criticality_peak: 4
+    summary: >
+      An elderly man with sudden facial droop and slurred speech. Tests the
+      FAST assessment and, critically, the "time last seen well" question —
+      the single most treatment-relevant fact in stroke, and one no responder
+      volunteers unprompted.
+    scene:
+      place: Living room, television on
+      description: >
+        A TV playing at conversational volume, a mantel clock, a small dog
+        barking intermittently. Domestic and ordinary, which is what makes it
+        eerie.
+      bed: livingroom_tv
+      snr_db: 20
+    voice:
+      semitones: 0.0
+      rate: 0.95
+      channel: handset_close
+    # ElevenLabs stock voice. A distinct speaker per scenario is far
+    # better than pitch-shifting one reader, so `voice.semitones` above
+    # is 0 for synthesised turns - see synthesize_voice.py.
+    tts:
+      voice_id: ThT5KcBeYPX3keUQqHPh
+      voice_name: Dorothy
+      voice_note: older woman, frightened, quiet
+    turns:
+      - n: 1
+        text: >
+          Something's wrong with my husband. His face has gone funny on one
+          side and he's talking but it's all — it's coming out wrong, I can't
+          understand him.
+        direction: >
+          Frightened but quiet. Older voice. You do not want to alarm him, so
+          you are half-whispering, turned away.
+        expect_markers: []
+        expect_no_markers: [not_breathing, unresponsive, no_pulse]
+        triage:
+          level: 4
+          escalation: requested
+        agent:
+          tools: [assess_criticality, escalate_to_clinician, lookup_protocol, record_finding]
+          protocols: [stroke-fast]
+      - n: 2
+        text: >
+          His right arm just — it drops when he lifts it. The left one's fine.
+          The right one won't stay up.
+        direction: >
+          Describing something you are watching in real time. Disbelief.
+        expect_markers: []
+        expect_no_markers: [not_breathing, unresponsive]
+        triage:
+          level: 4
+          escalation: requested
+        agent:
+          tools: [record_finding, lookup_protocol]
+          protocols: [stroke-fast]
+      - n: 3
+        text: >
+          He was fine at breakfast. About eight o'clock, we had toast, he was
+          completely normal. It's — what is it now, half nine?
+        direction: >
+          Working it out aloud. This is the "last seen well" answer and it
+          arrives hesitantly.
+        expect_markers: []
+        expect_no_markers: [not_breathing, unresponsive]
+        triage:
+          level: 4
+          escalation: requested
+        agent:
+          tools: [record_finding, recall_state]
+          protocols: [stroke-fast]
+      - n: 4
+        text: >
+          Should I give him a cup of tea? He keeps trying to get up.
+        direction: >
+          Wanting to do something useful. The wrong instinct, kindly meant.
+        expect_markers: []
+        expect_no_markers: [not_breathing, unresponsive]
+        triage:
+          level: 4
+          escalation: requested
+          note: >
+            stroke-fast is explicit: nothing to eat or drink. The agent must
+            refuse the tea.
+        agent:
+          tools: [lookup_protocol]
+          protocols: [stroke-fast]
+
+  # =========================================================================
+  - id: s07_garden_anaphylaxis
+    title: Anaphylaxis after a wasp sting
+    criticality_peak: 5
+    summary: >
+      A guest at a garden party goes into anaphylaxis. Tests the auto-injector
+      instruction and the five-minute second-dose rule — a timed, recall-driven
+      instruction that requires the agent to track elapsed time rather than ask.
+    scene:
+      place: Garden party, summer
+      description: >
+        Crowd chatter, music from a speaker, glasses, someone shouting for
+        help in the background. Several people talking over the caller.
+      bed: crowd_garden_party
+      snr_db: 14
+    voice:
+      semitones: 0.0
+      rate: 1.25
+      channel: handset_outdoor
+    # ElevenLabs stock voice. A distinct speaker per scenario is far
+    # better than pitch-shifting one reader, so `voice.semitones` above
+    # is 0 for synthesised turns - see synthesize_voice.py.
+    tts:
+      voice_id: 21m00Tcm4TlvDq8ikWAM
+      voice_name: Rachel
+      voice_note: adult woman, clear, rising panic
+    turns:
+      - n: 1
+        text: >
+          My friend's been stung and she's come out in a rash all over and her
+          face is swelling up — her lips are huge, she sounds really wheezy.
+        direction: >
+          Fast, rising. Talking over background noise. Genuine alarm.
+        expect_markers: []
+        expect_no_markers: [not_breathing, unresponsive, cyanosis]
+        triage:
+          level: 5
+          escalation: requested
+        agent:
+          tools: [assess_criticality, escalate_to_clinician, lookup_protocol, record_finding]
+          protocols: [anaphylaxis]
+      - n: 2
+        text: >
+          She's got one of those pens, an EpiPen, it's in her bag — I've got
+          it. Where do I — is it the leg? Through her jeans?
+        direction: >
+          Fumbling, talking while rummaging. Two questions at once.
+        expect_markers: []
+        expect_no_markers: [not_breathing, unresponsive]
+        triage:
+          level: 5
+          escalation: requested
+        agent:
+          tools: [lookup_protocol]
+          protocols: [anaphylaxis]
+      - n: 3
+        text: >
+          Done it. It's in, I held it. She's — I don't know, she's still
+          really struggling to breathe, it sounds awful.
+        direction: >
+          Adrenaline of your own. Shaky. "It's in, I held it" almost proud,
+          then immediately undercut.
+        expect_markers: []
+        expect_no_markers: [not_breathing, cannot_breathe, unresponsive]
+        triage:
+          level: 5
+          escalation: requested
+        agent:
+          tools: [record_finding, lookup_protocol]
+          protocols: [anaphylaxis]
+      - n: 4
+        text: >
+          How long's it been since I gave it to her? She's not getting any
+          better. There's a second pen in the bag.
+        direction: >
+          Desperate for a number. This is a recall question, not a question
+          for the caller to answer.
+        expect_markers: []
+        expect_no_markers: [not_breathing, unresponsive]
+        triage:
+          level: 5
+          escalation: requested
+          note: >
+            The agent must answer from recall_state, not ask the responder.
+            anaphylaxis protocol: second dose at 5 minutes if no improvement.
+        agent:
+          tools: [recall_state, lookup_protocol]
+          protocols: [anaphylaxis]
+
+  # =========================================================================
+  - id: s08_site_arrest
+    title: Collapse and cardiac arrest on a building site
+    criticality_peak: 5
+    summary: >
+      The canonical arrest. A worker collapses; unresponsive and not breathing.
+      Two markers fire on the first turn. Tests the hard-escalation path at
+      the worst signal-to-noise ratio in the corpus — if Deepgram cannot hear
+      "he's not breathing" over site machinery, that is a finding worth having.
+    scene:
+      place: Active construction site
+      description: >
+        Heavy machinery, a reversing alarm, metal impacts, shouting. Brutally
+        loud. The caller has run across the site and is out of breath.
+      bed: construction_site
+      snr_db: 8
+    voice:
+      semitones: 0.0
+      rate: 1.3
+      channel: speakerphone
+    # ElevenLabs stock voice. A distinct speaker per scenario is far
+    # better than pitch-shifting one reader, so `voice.semitones` above
+    # is 0 for synthesised turns - see synthesize_voice.py.
+    tts:
+      voice_id: pNInz6obpgDQGcFmaJgB
+      voice_name: Adam
+      voice_note: adult man, shouting over machinery
+    turns:
+      - n: 1
+        text: >
+          He's just gone down, he's on the deck and he's not moving — he's not
+          breathing, I don't think he's breathing at all.
+        direction: >
+          Shouting over machinery. Genuinely out of breath from running.
+          Break between "not moving" and "not breathing".
+        expect_markers: [not_breathing, unresponsive]
+        expect_no_markers: []
+        triage:
+          level: 5
+          escalation: requested
+          note: >
+            Both markers fire. Hard escalation forces CRITICAL on this turn
+            without waiting for the model. This is the system's most defensible
+            safety property.
+        agent:
+          tools: [record_finding, assess_criticality, escalate_to_clinician, lookup_protocol]
+          protocols: [bls-adult-cpr]
+      - n: 2
+        text: >
+          No. Nothing. I've got my hand on his chest, there's nothing. He's
+          grey, he's gone grey.
+        direction: >
+          Flat with shock. Quieter than turn 1, which is worse.
+        expect_markers: [pallor]
+        expect_no_markers: []
+        triage:
+          level: 5
+          escalation: requested
+          note: >
+            "He's gone grey" fires `pallor`. That marker did not exist when this
+            corpus was written: this turn is what surfaced the gap, because
+            `cyanosis` covers "blue" and nothing covered the greyness a
+            bystander actually reports over an arrested patient.
+            .
+            This is also the corpus' sharpest STT finding. Deepgram heard the
+            line as "He's great. He's doing great." — the meaning inverted by a
+            single phoneme under shouted delivery, on CLEAN audio. See
+            docs/evidence/2026-09-18-stt-degrades-under-urgency.md. The marker
+            fires on the script and NOT on the transcript, so the deterministic
+            net is defeated upstream of itself, by the STT layer.
+        agent:
+          tools: [record_finding, lookup_protocol]
+          protocols: [bls-adult-cpr]
+      - n: 3
+        text: >
+          I'm doing it, I'm pushing — how hard? Am I doing it hard enough? I
+          can feel something cracking.
+        direction: >
+          Rhythmic, breathing with the compressions. Frightened by the
+          cracking. Grunting slightly on each push.
+        expect_markers: []
+        expect_no_markers: []
+        triage:
+          level: 5
+          escalation: requested
+          note: >
+            The agent must NOT tell them to stop. protocols: at least 5cm,
+            100-120/min. Cracking is expected and must be normalised without
+            breaking rhythm.
+        agent:
+          tools: [lookup_protocol, record_finding]
+          protocols: [bls-adult-cpr]
+      - n: 4
+        text: >
+          Someone's bringing the defib from the site office. Do I stop? Do I
+          stop pushing to put it on?
+        direction: >
+          Shouted, still compressing, breathing hard between words.
+        expect_markers: []
+        expect_no_markers: []
+        triage:
+          level: 5
+          escalation: requested
+          note: >
+            Attaching an AED is the ONE permitted interruption per the system
+            prompt. Pads on without stopping compressions until it analyses.
+        agent:
+          tools: [lookup_protocol]
+          protocols: [bls-aed]
+
+  # =========================================================================
+  - id: s09_bedroom_agonal
+    title: Agonal breathing mistaken for breathing
+    criticality_peak: 5
+    summary: >
+      THE MOST IMPORTANT SCENARIO IN THE CORPUS. A woman wakes to her partner
+      making noises. She reports that he IS breathing — because he is making
+      noise — when in fact he is in cardiac arrest with agonal gasps. Roughly
+      40% of witnessed arrests present this way, and an agent that accepts
+      "yes he's breathing" routes the most common arrest presentation away
+      from CPR. This is defect #3 from docs/reviews/2026-09-17-clinical-safety.md.
+      SNR is deliberately the highest in the corpus: if noise masked the gasping
+      description, the test would prove nothing.
+    scene:
+      place: Bedroom, 3am
+      description: >
+        Near silence. A clock. Distant road. The casualty's irregular gasping
+        is audible on the recording — this is the one bed where the casualty
+        makes the noise, not the environment.
+      bed: bedroom_night
+      snr_db: 28
+    voice:
+      semitones: 0.0
+      rate: 1.1
+      channel: handset_close
+    # ElevenLabs stock voice. A distinct speaker per scenario is far
+    # better than pitch-shifting one reader, so `voice.semitones` above
+    # is 0 for synthesised turns - see synthesize_voice.py.
+    tts:
+      voice_id: LcfcDJNUP1GQjkzn1xUU
+      voice_name: Emily
+      voice_note: adult woman, soft, just woken
+    turns:
+      - n: 1
+        text: >
+          Something's wrong with my husband, he's making a horrible noise, I
+          woke up and he's — I can't wake him up.
+        direction: >
+          Just woken. Disoriented, frightened, quiet — you do not want to be
+          shouting at 3am even now. Voice cracking.
+        expect_markers: [unresponsive]
+        expect_no_markers: [not_breathing]
+        triage:
+          level: 5
+          escalation: requested
+          note: >
+            F-003 FIXED. `unresponsive` now fires on "I can't wake him up" —
+            the first-person phrasing a real caller uses — alongside the
+            "won't wake up" form the marker already covered. Both the object
+            and the trailing "up" are optional, so "I can't wake him" matches
+            too.
+            .
+            This is the turn that now escalates the incident, on the FIRST
+            thing the caller says, rather than turn 3. That is the whole point
+            of the deterministic net: a witnessed arrest reaches Level 5 on
+            the opening sentence without waiting for the model.
+            .
+            Previously asserted as observed: expect_markers [] at level 1.
+        agent:
+          tools: [record_finding, assess_criticality, escalate_to_clinician]
+          protocols: [bls-adult-cpr]
+      - n: 2
+        text: >
+          Yes — yes he's breathing, he's making this awful gasping noise, like
+          he's snoring but wrong. It's every few seconds.
+        direction: >
+          THE CRITICAL LINE. You believe you are giving reassuring news.
+          Say "yes he's breathing" with relief, then let doubt creep in on
+          "but wrong".
+        expect_markers: [inadequate_breathing]
+        expect_no_markers: [not_breathing]
+        triage:
+          level: 5
+          escalation: requested
+          note: >
+            The responder asserts breathing. phrases.py must fire
+            inadequate_breathing on "gasping" REGARDLESS, because agonal
+            respiration is an arrest presentation. This assertion is the
+            entire reason the marker exists.
+        agent:
+          tools: [record_finding, lookup_protocol]
+          protocols: [bls-adult-cpr]
+      - n: 3
+        text: >
+          He's not — no, he's not responding, I'm shaking him and shouting at
+          him and there's nothing.
+        direction: >
+          Rising panic. Shaking him as you speak. Voice breaking up.
+        expect_markers: [unresponsive]
+        expect_no_markers: [not_breathing]
+        triage:
+          level: 5
+          escalation: requested
+          note: >
+            F-001 FIXED. "He's not — no, he's not responding" now fires
+            `unresponsive`.
+            .
+            The self-repair "no," used to land inside a flat 3-word lookback
+            and was read as a logical negation of the finding after it. It is
+            not: it is a discourse marker meaning "no, in answer to your
+            question". The lookback is now clause-scoped — it stops at
+            punctuation and at coordinating conjunctions — and within the
+            clause a negator only governs the finding if it reaches it across
+            nothing but function words. Here the "no" has to cross a fresh
+            subject and verb ("he's"), so it does not suppress. Verified:
+                "he's not responding"                -> unresponsive
+                "he's not - no, he's not responding" -> unresponsive
+                "no he's not breathing"              -> not_breathing
+                "no, no, he's not breathing"         -> not_breathing
+            .
+            The adjacent negations this rule must still suppress do:
+                "the casualty is not unresponsive"   -> NONE
+                "he's never had a cardiac arrest"    -> NONE
+            .
+            Previously asserted as observed: expect_markers [].
+        agent:
+          tools: [record_finding, lookup_protocol]
+          protocols: [bls-adult-cpr]
+      - n: 4
+        text: >
+          On the floor? I have to get him off the bed onto the floor? He's
+          heavy, I can't — okay. Okay. I'm doing it.
+        direction: >
+          Overwhelmed, then finding resolve. The two "okay"s are you talking
+          yourself into it.
+        expect_markers: []
+        expect_no_markers: [not_breathing, unresponsive]
+        triage:
+          level: 5
+          escalation: requested
+        agent:
+          tools: [lookup_protocol, record_finding]
+          protocols: [bls-adult-cpr]
+
+  # =========================================================================
+  - id: s10_poolside_drowning
+    title: Child pulled from a swimming pool
+    criticality_peak: 5
+    summary: >
+      A four-year-old pulled unresponsive from a pool. Tests the drowning
+      marker and the hypoxic-arrest sequence — five rescue breaths BEFORE
+      compressions, which inverts standard adult BLS. Also tests ADR-009:
+      there is no BLACK category on the responder path. An apneic child is
+      always a CPR instruction, never "nothing more can be done".
+    scene:
+      place: Outdoor swimming pool, holiday complex
+      description: >
+        Water, splashing, echo off tiles and walls, multiple people screaming,
+        someone else calling out instructions. Chaotic and reverberant.
+      bed: poolside_chaos
+      snr_db: 12
+    voice:
+      semitones: 0.0
+      rate: 1.35
+      channel: handset_outdoor
+    # ElevenLabs stock voice. A distinct speaker per scenario is far
+    # better than pitch-shifting one reader, so `voice.semitones` above
+    # is 0 for synthesised turns - see synthesize_voice.py.
+    tts:
+      voice_id: jsCqWAovK2LkecY7zXl4
+      voice_name: Freya
+      voice_note: younger woman, full panic
+    turns:
+      - n: 1
+        text: >
+          We've pulled a little boy out of the pool, he's not moving, he's not
+          breathing, oh god, he's four, he's only four —
+        direction: >
+          Full panic. Fastest delivery in the corpus. Words running together.
+          Let the sentence collapse at the end.
+        expect_markers: [drowning, not_breathing, unresponsive]
+        expect_no_markers: []
+        triage:
+          level: 5
+          escalation: requested
+          note: >
+            TWO DEFECTS FIXED ON ONE TURN. All three markers now fire; before,
+            exactly one did.
+            .
+            F-001 (adjacent-clause negation) FIXED: "he's not moving, he's not
+            breathing" now fires BOTH `unresponsive` and `not_breathing`. The
+            negation lookback is clause-scoped, so the "not" belonging to "not
+            moving" no longer reaches across the comma to suppress the later
+            finding. Reporting two life threats in one breath no longer makes
+            the second one vanish. Verified:
+                "he's not moving, he's not breathing" -> [not_breathing, unresponsive]
+                "no pulse, he's not breathing"        -> [not_breathing, no_pulse]
+            .
+            F-004 (drowning vocabulary) FIXED: the pattern now matches a named
+            submersion location rather than the literal word "water", and
+            requires the casualty to be the OBJECT of the extraction.
+            Verified:
+                "pulled a little boy out of the pool" -> [drowning]
+                "we dragged her out of the lake"      -> [drowning]
+                "he got out of the pool and sat down" -> NONE
+            `drowning` firing is what signals the hypoxic-arrest sequence —
+            five rescue breaths BEFORE compressions — which inverts adult BLS
+            and is the whole reason a separate drowning protocol exists.
+            .
+            This turn is why the corpus asserts all three layers: criticality
+            reached 5 via `unresponsive` even while two independent failures
+            sat underneath a correct-looking level.
+            .
+            Previously asserted as observed: expect_markers [unresponsive].
+        agent:
+          tools: [record_finding, assess_criticality, escalate_to_clinician, lookup_protocol]
+          protocols: [drowning-rescue]
+      - n: 2
+        text: >
+          His lips are blue. He's blue round his mouth. Please tell me what to
+          do, please —
+        direction: >
+          Begging. Voice completely broken. This is the hardest line to read.
+        expect_markers: [cyanosis]
+        expect_no_markers: []
+        triage:
+          level: 5
+          escalation: requested
+        agent:
+          tools: [record_finding, lookup_protocol]
+          protocols: [drowning-rescue]
+      - n: 3
+        text: >
+          Breaths first? Not pushing on his chest? Okay — I'm tilting his head
+          back. How many?
+        direction: >
+          Grasping at instruction. Slightly calmer because someone is finally
+          telling you what to do.
+        expect_markers: []
+        expect_no_markers: [not_breathing]
+        triage:
+          level: 5
+          escalation: requested
+          note: >
+            drowning-rescue: five rescue breaths BEFORE compressions, then
+            30:2. This inverts adult BLS and is the whole point of a separate
+            drowning protocol.
+        agent:
+          tools: [lookup_protocol]
+          protocols: [drowning-rescue]
+      - n: 4
+        text: >
+          He's been sick, there's water and sick coming out of his mouth, what
+          do I do, do I stop?
+        direction: >
+          Revolted and frightened. Fast.
+        expect_markers: []
+        expect_no_markers: [not_breathing, unresponsive]
+        triage:
+          level: 5
+          escalation: requested
+          note: >
+            Expected in drowning. Turn the head, clear the mouth, continue.
+            The agent must not let this stop resuscitation.
+        agent:
+          tools: [lookup_protocol, record_finding]
+          protocols: [drowning-rescue]
+
+  # =========================================================================
+  - id: s11_platform_negation
+    title: Negation — the casualty is NOT unresponsive
+    criticality_peak: 3
+    summary: >
+      A man faints on a train platform and comes round. The caller explicitly
+      NEGATES the dangerous findings: "he's not unresponsive", "he wasn't
+      breathing properly but he is now", "he's never had a cardiac arrest".
+      This scenario asserts SUPPRESSION — the markers must NOT fire — which is
+      the strongest kind of assertion in the corpus, because a false positive
+      here destroys trust in the escalation that matters.
+      .
+      All four suppressions now work. The fourth, on turn 2, previously did
+      not: defect F-002 let a contracted past tense ("wasn't breathing")
+      escape the recovery-narrative guard, so a recovered faint escalated to
+      Critical, a clinician was bridged, and the ratchet correctly refused to
+      undo it — one spurious escalation was permanent for the rest of the
+      incident. `criticality_peak` is now 3, which is what this case
+      clinically warrants.
+      .
+      This scenario is also the guard on the F-001 rewrite. Narrowing the
+      negation rule can only make the net fire MORE often, so a scenario whose
+      entire purpose is suppression is exactly where an over-correction would
+      show up first.
+      .
+      Run at 9 dB SNR to prove suppression survives a bad channel too.
+    scene:
+      place: Railway platform
+      description: >
+        Tannoy announcements, brakes, a train departing, crowd movement.
+        Announcements deliberately overlap the caller's speech.
+      bed: train_platform
+      snr_db: 9
+    voice:
+      semitones: 0.0
+      rate: 1.05
+      channel: handset_outdoor
+    # ElevenLabs stock voice. A distinct speaker per scenario is far
+    # better than pitch-shifting one reader, so `voice.semitones` above
+    # is 0 for synthesised turns - see synthesize_voice.py.
+    tts:
+      voice_id: bVMeCyTHy58xNoL34h3p
+      voice_name: Jeremy
+      voice_note: adult man, matter-of-fact
+    turns:
+      - n: 1
+        text: >
+          A bloke's just fainted on the platform. He went down but he's come
+          round now — he's not unresponsive, he's talking to me.
+        direction: >
+          Reporting, not panicking. Slight emphasis on "not". You are
+          correcting an assumption you expect the operator to make.
+        expect_markers: []
+        expect_no_markers: [unresponsive, not_breathing, no_pulse]
+        triage:
+          level: 3
+          escalation: not_needed
+          note: >
+            "not unresponsive" — the negation window suppresses the match.
+            If unresponsive fires here, a fainting passenger triggers a
+            clinician bridge and the system is crying wolf.
+        agent:
+          tools: [assess_criticality, record_finding]
+      - n: 2
+        text: >
+          He wasn't breathing properly for a second there but he is breathing
+          now, he's fine, he's sat up against the wall.
+        direction: >
+          Reassuring. The clause structure matters — deliver "but he is
+          breathing now" as a correction, not a new fact.
+        expect_markers: []
+        expect_no_markers: [not_breathing, inadequate_breathing, unresponsive]
+        triage:
+          level: 3
+          escalation: not_needed
+          note: >
+            F-002 FIXED. "wasn't breathing ... but he is breathing now" is a
+            recovery narrative and is now suppressed, as the module's own
+            docstring always said it should be.
+            .
+            The guard required a bare `was|were|had` token BEFORE the match.
+            Here the past tense is fused into "wasn't", and "wasn't breathing"
+            is itself the matched text, so there was nothing past-tense in
+            front of the match at all. The tense is now read from the start of
+            the match as well as from the word before it, and the contracted
+            auxiliaries are in the same set as the bare ones.
+            .
+            This is the ONE fix in this set that narrows firing, so it is
+            deliberately the tightest: suppression still requires BOTH the past
+            tense AND an explicit later contradiction. "He wasn't breathing,
+            I've started CPR" — past tense, no contradiction — still fires.
+            .
+            Previously asserted as observed: expect_markers [not_breathing] at
+            level 5, which bridged a clinician to a recovered faint.
+        agent:
+          tools: [record_finding]
+      - n: 3
+        text: >
+          No he's never had a cardiac arrest or anything like that, he says he
+          just skipped breakfast.
+        direction: >
+          Relaying what the casualty told you. Slightly amused.
+        expect_markers: []
+        expect_no_markers: [cardiac_arrest, not_breathing, unresponsive]
+        triage:
+          level: 3
+          escalation: not_needed
+          note: >
+            The marker assertion here is the real subject: "never had a cardiac
+            arrest" is negated, so `cardiac_arrest` correctly stays silent. A
+            history question must not escalate a live incident. That
+            suppression survived the F-001 rewrite because the negator reaches
+            the finding across nothing but an auxiliary and a determiner
+            ("never had a"), which is what "the negator governs the finding"
+            means — unlike the discourse "no" of "no, he's not breathing".
+            .
+            Criticality is now 3, which is what this recovered faint clinically
+            warrants. It was 5 as a CONSEQUENCE OF DEFECT F-002 on turn 2 — the
+            contracted-past-tense miss escalated the incident and the ratchet
+            correctly refused to bring it back down.
+            .
+            That is still the clearest illustration of why the ratchet and the
+            marker logic must be tested together: one bad escalation was
+            permanent for the rest of the incident.
+        agent:
+          tools: [record_finding]
+      - n: 4
+        text: >
+          He's a bit pale and clammy still. Should he be sat up or lying down?
+        direction: >
+          Practical, mildly concerned. Back to ordinary.
+        expect_markers: []
+        expect_no_markers: [not_breathing, unresponsive]
+        triage:
+          level: 3
+          escalation: not_needed
+          note: >
+            An ordinary recovering faint, assessed as one. This turn used to
+            sit at 5 with a clinician bridged, pinned there by F-002 on turn 2.
+            The scenario now holds Level 3 throughout, which is the whole point
+            of asserting suppression: a net that escalates every recovered
+            faint gets ignored when a real arrest arrives.
+        agent:
+          tools: [lookup_protocol, record_finding]
+          protocols: [shock-management]
+
+  # =========================================================================
+  - id: s12_trail_deterioration
+    title: Deterioration — minor injury to cardiac arrest
+    criticality_peak: 5
+    summary: >
+      A hiker with an ankle injury deteriorates and arrests. Begins at Level 1
+      and ends at 5. Tests the ratchet end to end: criticality climbs 1 → 3 →
+      5, and the final calm turn ("he's breathing again") must NOT downgrade
+      it. The scene changes underneath the call — wind gives way to an
+      approaching helicopter — so the ambient bed is non-stationary, which is
+      the hardest case for STT.
+    scene:
+      place: Exposed hiking trail, then helicopter approach
+      description: >
+        Wind and boots on gravel early. From turn 4 a helicopter builds until
+        it dominates. The SNR degrades across the scenario by design.
+      bed: hiking_trail_helicopter
+      snr_db: 20
+      snr_db_end: 6
+    voice:
+      semitones: 0.0
+      rate: 1.0
+      channel: handset_outdoor
+    # ElevenLabs stock voice. A distinct speaker per scenario is far
+    # better than pitch-shifting one reader, so `voice.semitones` above
+    # is 0 for synthesised turns - see synthesize_voice.py.
+    tts:
+      # Was Arnold (VR6AewLTigWG4xSOukaG). Arnold is a deprecated Legacy voice
+      # and ElevenLabs silently reroutes its id to Adam - the voice s08 already
+      # uses - so two scenarios became one caller. Measured, not assumed: the
+      # same sentence synthesised through both ids came back 2.2% apart on
+      # zero-crossing rate and 0.6% on brightness, i.e. the same speaker.
+      # Eric is 27.9% / 53.1% from Adam and suits a 60-something hiker.
+      voice_id: cjVigY5qzO86Huf0OWal
+      voice_name: Eric
+      voice_note: adult man, deeper and slower, outdoorsy; steady then panicked
+    turns:
+      - n: 1
+        text: >
+          My mate's gone over on his ankle about two miles up the trail. He
+          can't really walk on it. Nothing serious, I just wanted advice.
+        direction: >
+          Relaxed, almost apologetic for calling. Wind noise. Ordinary day.
+        expect_markers: []
+        expect_no_markers: [not_breathing, unresponsive]
+        triage:
+          level: 1
+          escalation: not_needed
+        agent:
+          tools: [assess_criticality, lookup_protocol, record_finding]
+          protocols: [fracture-immobilise]
+      - n: 2
+        text: >
+          Actually he's gone really pale. He says he feels sick and his chest
+          feels tight. He's sixty-two.
+        direction: >
+          The turn. Confusion — this does not follow from an ankle. Concern
+          arriving mid-sentence.
+        expect_markers: [pallor]
+        expect_no_markers: [not_breathing, unresponsive]
+        triage:
+          level: 4
+          escalation: requested
+          note: >
+            Chest pain in a 62-year-old is chest-pain-cardiac, severity 4.
+            Criticality climbs 1 → 4 and crosses the threshold.
+            .
+            OPEN QUESTION, recorded rather than resolved here. `pallor` fires
+            on "gone really pale", and `hard_escalation_triggered` returns it —
+            so on the live path `escalation.apply_hard_escalation` would force
+            CRITICAL (5) on this turn, not the 4 this oracle asserts.
+            .
+            AND IT IS UNREVISABLE. `escalation.py` passes
+            `provenance=EVIDENCE`, which is right for "not breathing" — a
+            marker on raw speech is evidence of what was said. The consequence
+            for pallor is that the resulting CRITICAL is EVIDENCE-grade, and
+            ASM-14's ratchet permits exactly one correction: a stored
+            ASSUMPTION corrected by incoming EVIDENCE. Verified on the live
+            path — a clinician on the bridge reporting "awake, talking, radial
+            pulse present" at EVIDENCE grade is REFUSED, and the level stays 5
+            for the rest of the incident. Not merely sticky: structurally
+            uncorrectable, by design, by the person best placed to correct it.
+            .
+            That may be wrong. Pallor is a perfusion sign, not an airway or
+            breathing one: it is real and it belongs in the record, but a pale,
+            talking, breathing 62-year-old is Severe, not in arrest. Every other
+            hard marker means "this patient is dying right now"; pallor means
+            "this patient may be heading there". Treating them identically makes
+            the strongest rule in the system fire on the weakest evidence, and
+            a net that escalates a pale patient to Critical will be distrusted
+            when it escalates an apnoeic one.
+            .
+            The oracle asserts the CLINICALLY correct level (4) rather than the
+            level the current code would produce, because this file is the
+            specification and the divergence is the finding. The marker layer
+            and the triage layer are asserted separately for exactly this
+            reason. See the note on s08 t2 for the other half of this marker's
+            story.
+        agent:
+          tools: [assess_criticality, escalate_to_clinician, lookup_protocol, record_finding]
+          protocols: [chest-pain-cardiac]
+      - n: 3
+        text: >
+          He's gone down. He's collapsed, he's not responding to me, he's not
+          breathing right — oh god.
+        direction: >
+          Everything changes. Panic arrives all at once. Loud.
+        expect_markers: [not_breathing, unresponsive]
+        expect_no_markers: []
+        triage:
+          level: 5
+          escalation: requested
+          note: >
+            VERIFIED: both fire. "not breathing right" DOES match the
+            not_breathing pattern, because the pattern matches the substring
+            "not breathing" and the trailing "right" is outside the \b anchor.
+            Clinically this is the correct outcome — "not breathing right" is
+            an arrest presentation — but it matches for an incidental reason
+            rather than by design. Asserted as observed so that any future
+            tightening of the pattern has to confront this case explicitly.
+        agent:
+          tools: [record_finding, assess_criticality, lookup_protocol]
+          protocols: [bls-adult-cpr]
+      - n: 4
+        text: >
+          I'm doing compressions. There's a helicopter coming, I can hear it.
+          How long do I keep going for?
+        direction: >
+          Rhythmic, breathing hard, shouting over building rotor noise.
+        expect_markers: []
+        expect_no_markers: []
+        triage:
+          level: 5
+          escalation: requested
+        agent:
+          tools: [recall_state, lookup_protocol]
+          protocols: [bls-adult-cpr]
+      - n: 5
+        text: >
+          He's breathing! He's breathing again, he's coughing — he's coming
+          back!
+        direction: >
+          Elation, shouted over full helicopter noise. Almost unintelligible
+          with joy and rotor wash. THE hardest line for STT in the corpus.
+        expect_markers: []
+        expect_no_markers: [not_breathing, unresponsive]
+        triage:
+          level: 5
+          escalation: requested
+          downgrade_refused: true
+          note: >
+            ROSC does not lower criticality. A post-arrest patient is the most
+            fragile patient on the scale. The ratchet must refuse any
+            downgrade, and only a clinician stand-down could lower it — which
+            is out of scope for the field agent.
+        agent:
+          tools: [record_finding, lookup_protocol]
+          protocols: [airway-recovery-position]

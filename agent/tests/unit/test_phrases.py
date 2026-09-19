@@ -12,29 +12,25 @@ would not hear.
 
 from __future__ import annotations
 
-from pathlib import Path
-
 import pytest
-import yaml
 
-from aiscelapeus.phrases import find_markers, hard_escalation_triggered, normalize_for_match
+from aiscelapeus.phrases import (
+    HARD_ESCALATING_MARKERS,
+    find_markers,
+    hard_escalation_triggered,
+    normalize_for_match,
+)
+from tests.corpus import (
+    CORPUS,
+    DETECTED,
+    ESCALATING,
+    MULTI_MARKER,
+    NON_ESCALATING,
+    NOT_HARD,
+    case_id,
+)
 
-CORPUS_PATH = Path(__file__).parent.parent / "data" / "utterances.yaml"
-
-
-def _corpus() -> list[dict]:
-    with CORPUS_PATH.open(encoding="utf-8") as handle:
-        return yaml.safe_load(handle)
-
-
-CORPUS = _corpus()
-ESCALATING = [case for case in CORPUS if case["expect"] is not None]
-NON_ESCALATING = [case for case in CORPUS if case["expect"] is None]
-MULTI_MARKER = [case for case in CORPUS if case.get("expect_also")]
-
-
-def _id(case: dict) -> str:
-    return case["text"][:60]
+_id = case_id
 
 
 @pytest.mark.parametrize("case", ESCALATING, ids=_id)
@@ -48,6 +44,28 @@ def test_life_threat_is_recognised(case: dict) -> None:
     )
     assert hit.marker_id == case["expect"], (
         f"{case['text']!r} matched {hit.marker_id!r}, expected {case['expect']!r}"
+    )
+
+
+@pytest.mark.parametrize("case", NOT_HARD, ids=_id)
+def test_a_concerning_finding_is_recorded_without_forcing_critical(
+    case: dict,
+) -> None:
+    # falsifier: either half of the claim breaks, and they fail in opposite
+    # directions. If the marker stops being detected the finding is lost from the
+    # record entirely; if it starts firing the hard net it pins the incident at
+    # an EVIDENCE-grade Critical no clinician can lower. Asserting both together
+    # is what stops a fix for one becoming the other.
+    fired = {hit.marker_id for hit in find_markers(case["text"])}
+    assert case["expect"] in fired, (
+        f"{case['text']!r} fired {sorted(fired)}, expected {case['expect']!r}\n"
+        f"this finding must still be recorded because: {case['why'].strip()}"
+    )
+    hit = hard_escalation_triggered(case["text"])
+    assert hit is None, (
+        f"{case['text']!r} forced an uncorrectable Critical via {hit.marker_id!r}"
+        if hit
+        else ""
     )
 
 
@@ -437,6 +455,235 @@ def test_a_casualty_is_still_extracted_despite_the_object_exclusion() -> None:
         assert "drowning" in fired, f"{text!r} fired {sorted(fired)}"
 
 
+@pytest.mark.parametrize(
+    "text",
+    [
+        "he's gone grey",
+        "he's turning grey",
+        "he's grey, he's gone grey",
+        "he went grey",
+        "he's ashen",
+        "she's ashen grey",
+        "he's white as a sheet",
+        "he's gone a funny colour",
+        "she's grey in the face",
+        "his face is grey",
+        "his skin is grey",
+        "he's gone pale",
+        "she's deathly pale",
+        "he's lost all his colour",
+        # Colour as the SUBJECT that departs, rather than as a property that
+        # changes value. "her colour's gone" and "the colour's draining out of
+        # him" report the same finding with the colour word in subject position,
+        # where every branch written around "<person> <verb> <colour>" misses
+        # it. Both returned nothing, including before the marker existed.
+        # Found by independent review.
+        "her colour's gone",
+        "his colour has gone",
+        "the colour's draining out of him",
+        "the colour drained out of her face",
+    ],
+)
+def test_pallor_is_recognised(text: str) -> None:
+    # falsifier: pallor fires nothing, so the commonest bystander description of
+    # a peri-arrest patient - greyness - reaches the net as silence. Verified on
+    # a real corpus instance: `s08_site_arrest` turn 2 is a construction worker
+    # in cardiac arrest whose colour is reported as "he's grey, he's gone grey",
+    # and no marker fired on it.
+    fired = {hit.marker_id for hit in find_markers(text)}
+    assert "pallor" in fired, f"{text!r} fired {sorted(fired)}"
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "he's got grey hair",
+        "she has grey hair and a blue coat",
+        "the grey car is blocking the entrance",
+        "he's wearing a grey jumper",
+        "there's a white van outside",
+        "he's got a white shirt on",
+        "the walls are white and the floor is grey",
+        "it's the grey door on the left",
+        "bring the white bag",
+        "he's in a grey tracksuit",
+    ],
+)
+def test_an_ordinary_colour_word_is_not_pallor(text: str) -> None:
+    # falsifier: the marker matches a bare colour word, so "he's got grey hair"
+    # - a caller describing the casualty so the crew can find them - forces an
+    # irreversible Level 5 and pages a clinician. "grey" and "white" are among
+    # the commonest adjectives in English; a marker that fires on them is not a
+    # safety net, it is noise that gets the net switched off.
+    fired = {hit.marker_id for hit in find_markers(text)}
+    assert "pallor" not in fired, f"{text!r} fired {sorted(fired)}"
+
+
+def test_pallor_is_a_distinct_finding_from_cyanosis() -> None:
+    # falsifier: pallor is folded into the `cyanosis` marker id. Two costs, and
+    # the second is behavioural rather than cosmetic. (1) `triage.marker` is what
+    # a clinician reads when paged, and it would name deoxygenated haemoglobin
+    # for a perfusion failure. (2) The applier pages once per
+    # `session_id:marker_id`, so a caller reporting blue lips and THEN
+    # deteriorating to grey would page once - and grey-after-blue is a
+    # deterioration report, which `find_markers` documents as the most urgent
+    # thing a caller can say.
+    blue = {hit.marker_id for hit in find_markers("his lips are blue")}
+    grey = {hit.marker_id for hit in find_markers("he's gone grey")}
+    assert blue == {"cyanosis"}, f"blue fired {sorted(blue)}"
+    assert grey == {"pallor"}, f"grey fired {sorted(grey)}"
+
+
+def test_pallor_is_detected_but_does_not_hard_escalate() -> None:
+    # falsifier: `pallor` carries the power to force CRITICAL, and that Level 5
+    # is UNCORRECTABLE. Verified on the live path, not reasoned about:
+    # `escalation.py` passes `provenance=EVIDENCE`, and ASM-14's ratchet permits
+    # only ASSUMPTION-corrected-by-EVIDENCE, so a clinician on the bridge
+    # reporting "awake, talking, radial pulse present" at EVIDENCE grade is
+    # REFUSED (`rejected=True`) and the incident stays 5 for its lifetime.
+    #
+    # That uncorrectability is correct for the markers it was designed for - a
+    # reported arrest must outrank later L2 arithmetic - and wrong for this one.
+    # Every other marker means "this patient is dying right now"; pallor means
+    # "this patient may be heading there". A pale, talking, breathing
+    # 62-year-old is Severe, not in arrest (see s12_trail_deterioration t2).
+    #
+    # So the finding is still DETECTED and still reaches the record - it is a
+    # real perfusion sign - but it does not fire the hard net. The two halves
+    # are asserted together because either alone is the defect: silent detection
+    # loses the finding, hard escalation makes the strongest rule in the system
+    # fire on the weakest evidence.
+    text = "he's gone grey"
+    assert "pallor" in {hit.marker_id for hit in find_markers(text)}, (
+        "the finding must still be detected and reach the record"
+    )
+    assert hard_escalation_triggered(text) is None, (
+        "pallor must not force an uncorrectable CRITICAL"
+    )
+
+
+def test_every_hard_escalating_marker_means_imminent_death() -> None:
+    # falsifier: a marker is added to the hard-escalating set without anyone
+    # weighing that its CRITICAL cannot be revoked by a clinician. This pins the
+    # membership itself, so growing the set is a deliberate edit to a test that
+    # states the bar rather than a silent inheritance of the strongest power in
+    # the system. The bar: "this patient is dying right now", not "may be".
+    assert {marker.marker_id for marker in HARD_ESCALATING_MARKERS} == {
+        "not_breathing",
+        "inadequate_breathing",
+        "no_pulse",
+        "cardiac_arrest",
+        "unresponsive",
+        "cyanosis",
+        "cannot_breathe",
+        "drowning",
+    }
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "he's not grey",
+        "he isn't grey",
+        "she's not ashen",
+        "he's not pale",
+    ],
+)
+def test_a_negated_pallor_is_suppressed(text: str) -> None:
+    # falsifier: the new marker is written so that the negation walk cannot
+    # reach the finding - for instance by starting the match at the subject
+    # rather than at the colour - so "he's not grey" escalates. Every other
+    # marker in this module is governed by `_is_negated`; a new one that opts
+    # out of it silently reintroduces the module's original defect.
+    fired = {hit.marker_id for hit in find_markers(text)}
+    assert "pallor" not in fired, f"{text!r} fired {sorted(fired)}"
+
+
+@pytest.mark.parametrize(
+    ("text", "marker"),
+    [
+        ("he wasn't breathing, but now he's got his colour back", "not_breathing"),
+        ("he was unresponsive but now he's got his colour back", "unresponsive"),
+        ("he wasn't breathing but his colour's coming back", "not_breathing"),
+        ("he had no pulse, but now he's got his colour back", "no_pulse"),
+    ],
+)
+def test_a_colour_recovery_cannot_retract_a_different_finding(
+    text: str, marker: str
+) -> None:
+    # falsifier: THE FATAL ONE, and it was introduced by the fix for pallor's
+    # own recovery narrative. `_RECOVERY_WORDS` is consulted for EVERY marker,
+    # so putting colour terms in it opened a channel where "he's got his colour
+    # back" retracts `not_breathing`.
+    #
+    # This is clinically the worst case in the module. A bystander doing rescue
+    # breaths SEES the colour improve - that is what their own effort does -
+    # while spontaneous breathing has not returned. Reporting exactly that
+    # ("he wasn't breathing, but now he's got his colour back") made the net
+    # return NOTHING, verified by execution. Colour returning is not evidence of
+    # breathing, and one finding's recovery vocabulary must not retract another
+    # finding. Found by independent review.
+    fired = {hit.marker_id for hit in find_markers(text)}
+    assert marker in fired, f"{text!r} fired {sorted(fired)}"
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "the van's colour is grey, it just drove off",
+        "what colour is the car, the colour is white",
+        "the colour is grey",
+        "his jacket's colour is grey",
+        # Found while closing the subject-position gap: an alternative written
+        # as "draining from <anything>" fired on these. The colour must drain
+        # out of a PERSON.
+        "the colour is draining from the photo",
+        "the colour is draining out of the curtains",
+        "the paint's colour has gone",
+    ],
+)
+def test_a_colour_of_a_thing_is_not_pallor(text: str) -> None:
+    # falsifier: the "colour is X" branch admits the bare noun "colour" with no
+    # possessive and no body part, so a caller relaying a vehicle description to
+    # dispatch - routine on an RTC call, and mid-call, where it reaches
+    # `find_markers` like any other utterance - reports a clinical finding.
+    # The sibling branch is scoped to actual body parts; this one was not.
+    # Found by independent review.
+    fired = {hit.marker_id for hit in find_markers(text)}
+    assert "pallor" not in fired, f"{text!r} fired {sorted(fired)}"
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "he was white with rage",
+        "he's white with anger",
+        "she was pale with fear",
+        "he's grey with worry",
+    ],
+)
+def test_a_colour_of_an_emotion_is_not_pallor(text: str) -> None:
+    # falsifier: "white with rage" and "pale with fear" are idioms about an
+    # emotional reaction, not perfusion signs. A witness describing a third
+    # party's reaction reports a clinical finding that is not present.
+    # Found by independent review.
+    fired = {hit.marker_id for hit in find_markers(text)}
+    assert "pallor" not in fired, f"{text!r} fired {sorted(fired)}"
+
+
+def test_a_past_tense_pallor_with_a_recovery_is_suppressed() -> None:
+    # falsifier: the recovery narrative for pallor is not suppressed, so a
+    # casualty who has visibly recovered is still reported as peri-arrest. The
+    # pairing is the point: the two utterances differ only in whether the
+    # recovery is stated, and only the first may be suppressed.
+    recovered = "he was grey but he's got his colour back"
+    still_grey = "he was grey"
+    assert "pallor" not in {hit.marker_id for hit in find_markers(recovered)}
+    assert "pallor" in {hit.marker_id for hit in find_markers(still_grey)}, (
+        "a past tense WITHOUT a contradiction must still fire"
+    )
+
+
 def test_only_an_adjacent_past_tense_can_suppress_a_finding() -> None:
     # falsifier: the recovery-narrative guard goes back to scanning the whole
     # utterance for a past-tense verb at unbounded distance, which is the flat
@@ -507,7 +754,11 @@ def test_corpus_covers_every_declared_marker() -> None:
     from aiscelapeus.phrases import MARKERS
 
     declared = {marker.marker_id for marker in MARKERS}
-    exercised = {case["expect"] for case in ESCALATING}
+    # Every DETECTED marker, not only the hard-escalating ones. Reading
+    # `ESCALATING` here would let a `hard: false` marker be declared, never
+    # exercised, and still pass - which is the exact hole this test exists to
+    # close, reopened by the field that was added to describe such markers.
+    exercised = {case["expect"] for case in DETECTED}
     assert declared == exercised, (
         f"markers never exercised by the corpus: {sorted(declared - exercised)}\n"
         f"corpus expects markers that do not exist: {sorted(exercised - declared)}"

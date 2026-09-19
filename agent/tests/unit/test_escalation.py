@@ -48,26 +48,20 @@ from aiscelapeus.escalation import (
 )
 from aiscelapeus.transcript import BYSTANDER, RESPONDER, UNKNOWN_SPEAKER, Utterance
 from aiscelapeus.triage import Criticality, EscalationStatus, TriageState
+from tests.corpus import (
+    CORPUS,
+    ESCALATING,
+    MULTI_MARKER,
+    NON_ESCALATING,
+    NOT_HARD,
+    case_id,
+)
 
-CORPUS_PATH = Path(__file__).parent.parent / "data" / "utterances.yaml"
-
-
-def _corpus() -> list[dict]:
-    with CORPUS_PATH.open(encoding="utf-8") as handle:
-        return yaml.safe_load(handle)
-
-
-CORPUS = _corpus()
-ESCALATING = [case for case in CORPUS if case["expect"] is not None]
-NON_ESCALATING = [case for case in CORPUS if case["expect"] is None]
-#: Utterances reporting several life threats in one breath. Driven through the
-#: applier separately: `find_markers` returning all of them says nothing about
-#: which one the clinician is actually paged under.
-MULTI_MARKER = [case for case in CORPUS if case.get("expect_also")]
-
-
-def _id(case: dict) -> str:
-    return case["text"][:60]
+#: The corpus subsets come from `tests.corpus`, which is the one place that
+#: knows what each one means. `MULTI_MARKER` is driven through the applier here
+#: as well as through the matcher: `find_markers` returning all of them says
+#: nothing about which one the clinician is actually paged under.
+_id = case_id
 
 
 class Recorder:
@@ -578,9 +572,14 @@ def test_the_corpus_drives_every_declared_marker_through_the_applier() -> None:
     # under the wrong category - with no case exercising the applier for it. This
     # is the guard against the corpus sweep above looking thorough while a marker
     # slips through untested on the acting path.
-    from aiscelapeus.phrases import MARKERS
+    # HARD_ESCALATING_MARKERS, not MARKERS. A marker that deliberately does not
+    # fire the net cannot be driven through the applier, and demanding it be
+    # would force the corpus to claim an escalation the design forbids. The
+    # narrower set is also the stronger assertion: it says every marker that CAN
+    # escalate IS exercised, which is the property this test was written for.
+    from aiscelapeus.phrases import HARD_ESCALATING_MARKERS
 
-    declared = {marker.marker_id for marker in MARKERS}
+    declared = {marker.marker_id for marker in HARD_ESCALATING_MARKERS}
     driven = {case["expect"] for case in ESCALATING}
     assert declared == driven, (
         f"markers never driven through the applier: {sorted(declared - driven)}"
@@ -588,6 +587,9 @@ def test_the_corpus_drives_every_declared_marker_through_the_applier() -> None:
     assert len(ESCALATING) >= 41, (
         f"the corpus sweep must not silently shrink; got {len(ESCALATING)} cases"
     )
+    # The other half: a non-escalating marker must still be exercised somewhere,
+    # or `hard: false` becomes a way to drop a finding out of every sweep.
+    assert NOT_HARD, "no corpus entry exercises a detected-but-not-hard marker"
 
 
 @pytest.mark.parametrize("case", MULTI_MARKER, ids=_id)

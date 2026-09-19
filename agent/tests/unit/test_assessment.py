@@ -3194,12 +3194,55 @@ def test_l1_does_not_consult_l2_at_all() -> None:
     # assessment machine, so the backstop that exists to catch failure of
     # everything above it stops firing when the thing above it is broken - which
     # is precisely when it is needed. ASM-05.
+    # Asserted over the IMPORT GRAPH, not over the source text. The original
+    # form was `"assessment" not in source`, which cannot tell a dependency from
+    # the word appearing in a comment: it failed the moment `phrases.py`
+    # explained, in prose, that a CONCERNING marker leaves the level to the
+    # model's own L2 assessment. A guard that a truthful comment can turn red
+    # teaches authors to avoid a WORD rather than to avoid a DEPENDENCY, and it
+    # would equally have passed against a module that imported L2 under an alias
+    # - failing in the safe direction is luck, not design.
+    #
+    # Parsing the imports asserts the property itself. Transitive imports are
+    # walked too, because "L1 does not consult L2" is false if L1 imports
+    # something that does.
+    from collections import deque
+
+    import aiscelapeus
     from aiscelapeus import escalation, phrases
 
+    def _imported_modules(module_name: str) -> set[str]:
+        """Every first-party module reachable from `module_name` by import."""
+        seen: set[str] = set()
+        queue = deque([module_name])
+        while queue:
+            current = queue.popleft()
+            if current in seen:
+                continue
+            seen.add(current)
+            path = Path(inspect.getfile(aiscelapeus)).parent / f"{current}.py"
+            if not path.exists():
+                continue
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+            for node in ast.walk(tree):
+                if isinstance(node, ast.ImportFrom):
+                    # BOTH the module and the imported names. `from . import
+                    # assessment` carries `node.module is None` and names the
+                    # module in `names` - reading only `node.module` let exactly
+                    # that form through, verified by a mutant that survived.
+                    if node.module:
+                        queue.append(node.module.rsplit(".", 1)[-1])
+                    queue.extend(alias.name.rsplit(".", 1)[-1] for alias in node.names)
+                elif isinstance(node, ast.Import):
+                    queue.extend(alias.name.rsplit(".", 1)[-1] for alias in node.names)
+        return seen
+
     for module in (phrases, escalation):
-        source = Path(inspect.getfile(module)).read_text(encoding="utf-8")
-        assert "assessment" not in source, (
-            f"{module.__name__} must not depend on L2"
+        name = module.__name__.rsplit(".", 1)[-1]
+        reachable = _imported_modules(name)
+        assert "assessment" not in reachable, (
+            f"{module.__name__} must not depend on L2; "
+            f"reaches it via {sorted(reachable)}"
         )
 
     hit = phrases.hard_escalation_triggered("he's not breathing")

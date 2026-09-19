@@ -42,26 +42,40 @@ turns:
       criticality: 5
       escalated: true
       escalation_status: requested
-      marker: pallor
+      marker: cannot_breathe
     why: >
       The incident reaches CRITICAL and pages a clinician on L1's net, from the
-      responder's literal words. `marker: pallor` names which of the nine
-      markers fired, and asserting the id rather than merely `escalated: true`
-      is what makes this turn evidence about the net rather than about the
-      ratchet - defect F-001 is on record for exactly that difference, where a
-      single surviving marker masked two independent failures underneath a
+      responder's literal words. `marker: cannot_breathe` names which marker
+      fired, and asserting the id rather than merely `escalated: true` is what
+      makes this turn evidence about the net rather than about the ratchet -
+      defect F-001 is on record for exactly that difference, where a single
+      surviving marker masked two independent failures underneath a
       correct-looking criticality level.
 
-      THE ID IS `pallor` AND NOT `cannot_breathe`, WHICH IS THE CONTRACT RATHER
-      THAN AN ACCIDENT. This utterance contains two life threats. "gone grey"
-      matches `pallor` and "can't breathe" matches `cannot_breathe`, and
-      `hard_escalation_triggered` returns the FIRST in MARKERS order - `pallor`
-      precedes `cannot_breathe` in that tuple. This oracle was written expecting
-      `cannot_breathe` on the reasoning that it is the more urgent finding, and
-      the harness rejected it. That is the right outcome twice over: the
-      criticality and the page do not depend on which of two co-occurring
-      markers wins, and an author's intuition about clinical urgency is not the
-      same thing as the module's documented ordering.
+      THE ID IS `cannot_breathe` AND NOT `pallor`, AND THE REASON CHANGED. This
+      utterance contains two findings: "gone grey" matches `pallor` and "can't
+      breathe" matches `cannot_breathe`.
+
+      This oracle originally asserted `cannot_breathe`, was rejected by the
+      harness, and was changed to `pallor` - because `hard_escalation_triggered`
+      returned the first marker in MARKERS order and `pallor` preceded
+      `cannot_breathe` in the tuple. The note recorded then was that "an
+      author's intuition about clinical urgency is not the same thing as the
+      module's documented ordering". That was true, and it was a statement about
+      a LIMITATION: tuple position was the only rule the module had, so it could
+      not express urgency at all.
+
+      It can now. `MarkerSeverity` distinguishes IMMINENT ("this patient is
+      dying right now") from CONCERNING ("may be heading there"), and `pallor`
+      is the one CONCERNING marker - it is detected and recorded, but it does
+      not force the uncorrectable Critical that `escalation.py` sets at EVIDENCE
+      grade. So `hard_escalation_triggered` skips it and returns the airway
+      finding, which is the one the original author's intuition named.
+
+      The two now coincide, and the coincidence is the point: the mechanism
+      encodes the clinical claim instead of an accident of tuple position. The
+      criticality and the page still do not depend on which marker wins - only
+      the attributed id does.
 
       What the single returned id CANNOT tell you is whether both markers were
       seen, which is why `find_markers` exists alongside it and why
