@@ -6,8 +6,9 @@ hands are busy and whose screen is out of reach.
 A responder opens a call and talks. The agent listens full-duplex, retrieves
 verified first-aid protocol from **Moss** in single-digit milliseconds, records
 every vital and intervention into a live incident index, scores criticality on a
-1–5 scale, and bridges a human clinician onto the call the moment the case gets
-past what field first aid should decide. When it is over, the same recorded
+1–5 scale, and requests a human clinician the moment the case gets past what
+field first aid should decide. A clinician joins the incident room manually in
+this demo. When it is over, the same recorded
 timeline produces the SOAP note.
 
 Built for the **YC Fall 2026 × Moss Zero Latency Builder Sprint**, Real-Time Voice
@@ -58,7 +59,7 @@ the latency claim is evidenced rather than asserted.
                        └──────────┬───────────┘
         ┌────────────────┬────────┴────────┬──────────────────┐
         ▼                ▼                 ▼                  ▼
-   Deepgram STT      GPT-4o + CRISPE   ElevenLabs TTS    OpenTelemetry
+   Deepgram STT      Gemini + CRISPE   Deepgram TTS      OpenTelemetry
    nova-3-medical    tools + triage    turbo v2.5        every stage
    diarization                                           traced
                           │
@@ -79,7 +80,7 @@ Five tools are exposed to the model, and all clinical content flows through them
 | `record_finding` | Writes a vital, intervention or observation into the live session index. |
 | `recall_state` | Semantic recall over what has already happened, including elapsed time. |
 | `assess_criticality` | Sets the 1–5 level. Ratchets upward; never silently downgrades. |
-| `escalate_to_clinician` | Bridges a human onto the call and broadcasts it to every participant. |
+| `escalate_to_clinician` | Records and broadcasts a clinician request. A clinician joins the incident room manually. |
 
 ---
 
@@ -117,7 +118,7 @@ cp .env.example .env.local          # agent
 cp .env.example web/.env.local      # web app
 ```
 
-Fill in LiveKit, Moss, Deepgram, ElevenLabs and OpenAI credentials.
+Fill in LiveKit, Moss, Deepgram and Gemini credentials.
 
 ### 2. Build the protocol index (once)
 
@@ -178,7 +179,7 @@ substitute for one:
 
 - Criticality ratchets upward within an incident and never silently downgrades.
 - A deterministic phrase-level rule forces Level 5 and an immediate clinician
-  bridge on reports of no breathing, no pulse, unresponsiveness or drowning —
+  request on reports of no breathing, no pulse, unresponsiveness or drowning —
   independent of the model's judgement.
 - The agent is instructed to refuse and escalate rather than improvise any
   instruction not returned by protocol retrieval.
@@ -200,4 +201,9 @@ Tracked openly rather than hidden — these are the next commits, not oversights
   (`@moss-dev/moss-web`) is the intended path.
 - **Prosody-driven escalation.** Distress scoring is modelled in `TriageState`
   but is not yet wired to an acoustic signal.
-- **Scenario test harness** (PRD 5.5) for simulated responders and doctors.
+- **External clinician dispatch.** Escalation currently records and broadcasts a request;
+  the clinician joins the incident ID manually. The UI distinguishes requested from joined.
+- **Live L2 translation.** The typed assessment state machine and headless harness are built,
+  but free-text-to-typed-finding extraction is not yet wired into the live agent.
+- **STT robustness.** Two committed synthetic urgent-speech turns lose safety markers before
+  any downstream rule can see them; they remain strict expected failures in the corpus.

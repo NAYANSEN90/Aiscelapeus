@@ -1,6 +1,11 @@
 # Aiscelapeus — Build Plan
 
 **Status:** active
+
+**Current execution slice (19 Sept):** `docs/TONIGHT-PLAN.md` is the authoritative
+finish sequence for the live demonstration. It supersedes stale status labels in this
+historical plan where B4 and B5 are still described as future work; both are implemented.
+The next live-path work is the tested clinician lifecycle and late-join snapshot, not B6.
 **Created:** 16 Sept 2026
 **Owner:** NAYANSEN
 **Supersedes:** the day-by-day roadmap in `docs/DESIGN.md` §10, which assumed an

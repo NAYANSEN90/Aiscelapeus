@@ -173,7 +173,12 @@ export default function ResponderPage() {
             </p>
             {stream.escalation && (
               <p className="mt-3 rounded-md bg-red-950/60 px-3 py-2 text-sm text-red-200 ring-1 ring-red-800">
-                Clinician bridged — {stream.escalation.reason}
+                {stream.state?.clinician_present
+                  ? "Clinician joined"
+                  : stream.state?.escalation === "clinician_lost"
+                    ? "Clinician disconnected — the agent remains with you"
+                    : "Clinician requested — waiting for them to join"}
+                {" — "}{stream.escalation.reason}
               </p>
             )}
           </div>

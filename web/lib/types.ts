@@ -10,7 +10,8 @@ export type TriageTopic =
   | "triage.retrieval"
   | "triage.escalation"
   | "triage.transcript"
-  | "triage.soap";
+  | "triage.soap"
+  | "triage.snapshot";
 
 export interface TriageState {
   session_id: string;
@@ -18,16 +19,26 @@ export interface TriageState {
   label: string;
   rationale: string;
   definition: string;
+  level_provenance: "assumption" | "evidence";
+  level_correctable: boolean;
+  escalation:
+    | "not_needed"
+    | "requested"
+    | "clinician_joined"
+    | "clinician_lost"
+    | "failed_no_response";
   escalated: boolean;
+  clinician_present: boolean;
   escalation_reason: string | null;
   clinician_requested_at: string | null;
-  distress_score: number;
   updated_at: string;
   history: Array<{
     level: number;
     label: string;
     rationale: string;
     source: string;
+    provenance: "assumption" | "evidence";
+    corrected: boolean;
     at: string;
   }>;
 }
@@ -36,8 +47,8 @@ export interface Finding {
   id: string;
   text: string;
   kind: string;
-  seq: string;
-  elapsed_s: string;
+  seq: number;
+  elapsed_s: number;
   recorded_at: string;
 }
 
@@ -70,13 +81,19 @@ export interface SoapEvent {
   note: string;
 }
 
+export interface SnapshotEvent {
+  state: TriageState;
+  findings: Finding[];
+}
+
 export type TriageEnvelope =
   | { topic: "triage.state"; data: TriageState }
   | { topic: "triage.finding"; data: Finding }
   | { topic: "triage.retrieval"; data: RetrievalEvent }
   | { topic: "triage.escalation"; data: EscalationEvent }
   | { topic: "triage.transcript"; data: TranscriptEvent }
-  | { topic: "triage.soap"; data: SoapEvent };
+  | { topic: "triage.soap"; data: SoapEvent }
+  | { topic: "triage.snapshot"; data: SnapshotEvent };
 
 export const LEVEL_STYLES: Record<number, { bg: string; ring: string; text: string }> = {
   1: { bg: "bg-emerald-500/10", ring: "ring-emerald-500/40", text: "text-emerald-300" },

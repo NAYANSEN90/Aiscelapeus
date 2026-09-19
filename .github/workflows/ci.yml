@@ -14,13 +14,12 @@ name: CI
 #   meta  - every test in tests/unit names its falsifier and really asserts
 #           something. Verified by adding deliberately-bad tests and confirming
 #           each was caught.
-#   web   - the TypeScript typechecks and lints. Its test step is disabled
-#           because web/ has no test files; see the note on that step.
+#   web   - the TypeScript typechecks and lints, and Vitest exercises the token
+#           boundary plus every LiveKit data-channel event/reducer path.
 #
-# `contract` and `harness` are commented out below, each with the reason and
-# the condition for restoring it. They are disabled rather than deleted so the
-# intent survives, and disabled rather than enabled so the gate never shows a
-# pass it did not earn.
+# `contract` remains commented out below with the reason and the condition for
+# restoring it. It is disabled rather than enabled so the gate never shows a
+# pass it did not earn. The headless harness is now a real, blocking job.
 
 on:
   push:
@@ -101,17 +100,7 @@ jobs:
         run: npm run typecheck
       - name: Lint
         run: npm run lint
-      # `npm run test` no longer carries --passWithNoTests: zero test files is
-      # now exit code 1 rather than a green tick. web/ currently has no test
-      # files at all, so the step is disabled rather than left red on the first
-      # real run - an always-failing gate gets ignored, which is the same
-      # outcome as no gate.
-      #
-      # TODO: delete this `if` the moment the first web test lands. There is no
-      # workflow change needed beyond removing the condition; the script itself
-      # already fails correctly on an empty suite (verified locally).
       - name: Test
-        if: false
         run: npm run test
 
   # DISABLED: this job has no target on either side of the boundary.

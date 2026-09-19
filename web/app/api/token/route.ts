@@ -26,10 +26,11 @@ const TOKEN_TTL_SECONDS = 15 * 60;
 export async function POST(req: NextRequest) {
   const apiKey = process.env.LIVEKIT_API_KEY;
   const apiSecret = process.env.LIVEKIT_API_SECRET;
+  const livekitUrl = process.env.NEXT_PUBLIC_LIVEKIT_URL ?? process.env.LIVEKIT_URL;
 
-  if (!apiKey || !apiSecret) {
+  if (!apiKey || !apiSecret || !livekitUrl) {
     return NextResponse.json(
-      { error: "Server is missing LIVEKIT_API_KEY or LIVEKIT_API_SECRET" },
+      { error: "Server is missing LiveKit configuration" },
       { status: 500 }
     );
   }
@@ -43,7 +44,10 @@ export async function POST(req: NextRequest) {
 
   const room = typeof body.room === "string" ? body.room.trim() : "";
   const identity = typeof body.identity === "string" ? body.identity.trim() : "";
-  const role: Role = body.role === "clinician" ? "clinician" : "responder";
+  if (body.role !== "clinician" && body.role !== "responder") {
+    return NextResponse.json({ error: "Role must be responder or clinician" }, { status: 400 });
+  }
+  const role: Role = body.role;
 
   if (!ROOM_PATTERN.test(room)) {
     return NextResponse.json(
@@ -77,7 +81,7 @@ export async function POST(req: NextRequest) {
   return NextResponse.json(
     {
       token: await token.toJwt(),
-      url: process.env.NEXT_PUBLIC_LIVEKIT_URL ?? process.env.LIVEKIT_URL ?? null,
+      url: livekitUrl,
       room,
       identity,
       role,
