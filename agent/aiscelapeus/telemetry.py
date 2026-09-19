@@ -15,13 +15,19 @@ from __future__ import annotations
 import hashlib
 import logging
 import time
+from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
-from typing import Any, Iterator
+from typing import Any
 
 from opentelemetry import trace
 from opentelemetry.sdk.resources import Resource
-from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import BatchSpanProcessor, SimpleSpanProcessor
+from opentelemetry.sdk.trace import ReadableSpan, TracerProvider
+from opentelemetry.sdk.trace.export import (
+    BatchSpanProcessor,
+    SimpleSpanProcessor,
+    SpanExporter,
+    SpanExportResult,
+)
 from opentelemetry.trace import Span, Status, StatusCode
 
 from .config import TelemetryConfig
@@ -32,17 +38,18 @@ _INITIALISED = False
 _TRACER: trace.Tracer | None = None
 
 
-class _CompactConsoleExporter:
+class _CompactConsoleExporter(SpanExporter):
     """One readable line per span instead of a page of JSON.
 
     The default ConsoleSpanExporter drowns the agent log during a live demo.
     """
 
-    def export(self, spans: Any) -> Any:  # noqa: ANN401 - SDK interface
-        from opentelemetry.sdk.trace.export import SpanExportResult
-
+    def export(self, spans: Sequence[ReadableSpan]) -> SpanExportResult:
         for span in spans:
-            duration_ms = (span.end_time - span.start_time) / 1_000_000
+            if span.end_time is None or span.start_time is None:
+                duration_ms = 0.0
+            else:
+                duration_ms = (span.end_time - span.start_time) / 1_000_000
             attrs = span.attributes or {}
             interesting = {
                 k: v
